@@ -130,19 +130,27 @@ public class SqlDumpSplitterTests : IDisposable
     }
 
     [Fact]
-    public void Assemble_EmitsFksAfterAllTables_AndExcludesAtlasBlindSpots()
+    public void Assemble_OrdersForDependencies_AndIncludesEveryObjectKind()
     {
         SqlDumpSplitter.Write(Dump, _repo);
         var sql = DesiredStateAssembler.Assemble(_repo);
 
-        // FK must come after BOTH create-table statements (dependency-safe ordering).
+        var extAt = sql.IndexOf("CREATE EXTENSION", StringComparison.Ordinal);
+        var widgetsAt = sql.IndexOf("CREATE TABLE public.widgets", StringComparison.Ordinal);
+        var gadgetsAt = sql.IndexOf("CREATE TABLE public.gadgets", StringComparison.Ordinal);
         var fkAt = sql.IndexOf("FOREIGN KEY", StringComparison.Ordinal);
-        Assert.True(fkAt > sql.IndexOf("CREATE TABLE public.widgets", StringComparison.Ordinal));
-        Assert.True(fkAt > sql.IndexOf("CREATE TABLE public.gadgets", StringComparison.Ordinal));
+        var fnAt = sql.IndexOf("CREATE FUNCTION", StringComparison.Ordinal);
+        var trgAt = sql.IndexOf("CREATE TRIGGER", StringComparison.Ordinal);
 
-        // Atlas-blind-spot objects are never handed to Atlas.
-        Assert.DoesNotContain("CREATE EXTENSION", sql);
-        Assert.DoesNotContain("CREATE FUNCTION", sql);
-        Assert.DoesNotContain("CREATE TRIGGER", sql);
+        // Dependency-safe ordering for pg-schema-diff's temp-DB load (no topo sort):
+        Assert.True(extAt >= 0 && extAt < widgetsAt);        // extension before tables
+        Assert.True(fkAt > widgetsAt && fkAt > gadgetsAt);   // FKs after ALL tables
+        Assert.True(fnAt > gadgetsAt && trgAt > fnAt);       // functions after tables, trigger after its function
+
+        // pg-schema-diff manages every object kind, so all are emitted — plus the EF keep-alive.
+        Assert.Contains("CREATE EXTENSION", sql);
+        Assert.Contains("CREATE FUNCTION", sql);
+        Assert.Contains("CREATE TRIGGER", sql);
+        Assert.Contains("__EFMigrationsHistory", sql);
     }
 }

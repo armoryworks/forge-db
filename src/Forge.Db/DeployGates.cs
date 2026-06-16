@@ -3,10 +3,11 @@ using System.Text.RegularExpressions;
 namespace Forge.Db;
 
 /// <summary>
-/// Forge-specific safety that lives ABOVE Atlas's diff (docs/DESIGN.md §4): block possibly-lossy
-/// changes by default (dacpac <c>BlockOnPossibleDataLoss</c> parity), and never auto-apply against
-/// a non-dev target without an explicit confirmation. Atlas decides correctness; these gates decide
-/// whether we are allowed to run it at all.
+/// Forge-specific safety that lives ABOVE the diff engine (docs/DESIGN.md §4): block possibly-lossy
+/// changes by default (dacpac <c>BlockOnPossibleDataLoss</c> parity), and never auto-apply against a
+/// non-dev target without an explicit confirmation. pg-schema-diff decides correctness; these gates
+/// decide whether we are allowed to run it at all. Destructiveness is read both from DROP statements
+/// and from pg-schema-diff's own <c>DELETES_DATA</c> hazard annotation.
 /// </summary>
 public static partial class DeployGates
 {
@@ -27,10 +28,12 @@ public static partial class DeployGates
     public static GateResult Evaluate(string planSql, bool isDev, bool confirmed, bool backupTaken, bool allowDestructive)
     {
         var destructive = DestructiveStatements(planSql);
-        if (destructive.Count > 0 && !allowDestructive)
-            return new GateResult(false,
-                $"plan contains {destructive.Count} possibly-destructive statement(s) and --allow-destructive was not passed: "
-                + string.Join("; ", destructive.Take(5)));
+        var dataLoss = destructive.Count > 0 || planSql.Contains("DELETES_DATA", StringComparison.Ordinal);
+        if (dataLoss && !allowDestructive)
+            return new GateResult(false, destructive.Count > 0
+                ? $"plan contains {destructive.Count} possibly-destructive statement(s) and --allow-destructive was not passed: "
+                  + string.Join("; ", destructive.Take(5))
+                : "plan carries a DELETES_DATA hazard and --allow-destructive was not passed");
 
         if (isDev) return new GateResult(true, "dev target — confirm/backup gates skipped");
 

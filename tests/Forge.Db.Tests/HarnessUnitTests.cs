@@ -36,7 +36,7 @@ public class HarnessUnitTests
     }
 
     [Fact]
-    public void DbUrl_ConvertsAtlasUrlToNpgsql()
+    public void DbUrl_ConvertsPostgresUrlToNpgsql()
     {
         var conn = DbUrl.ToNpgsql("postgres://postgres:scratch@127.0.0.1:55432/forge?sslmode=disable");
         Assert.Contains("Host=127.0.0.1", conn);

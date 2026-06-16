@@ -1,36 +1,37 @@
 namespace Forge.Db.Commands;
 
 /// <summary>
-/// <c>apply --db &lt;url&gt; --dev-url &lt;url&gt; [--env name] [--yes] [--backup-taken]
-/// [--allow-destructive]</c> — reconcile a live DB to desired state, behind the safety gates
-/// (docs/DESIGN §4, §4.1). Always captures the plan SQL to <c>history/</c> BEFORE applying — an
-/// audit receipt, never replayed.
+/// <c>apply --db &lt;url&gt; [--env name] [--yes] [--backup-taken] [--allow-destructive]</c> —
+/// reconcile a live DB to desired state behind the safety gates (docs/DESIGN §4, §4.1). Captures the
+/// plan SQL to <c>history/</c> BEFORE applying (an audit receipt, never replayed), then runs
+/// pg-schema-diff with exactly the hazards the gates approved.
 /// </summary>
 public static class ApplyCommand
 {
     public static int Run(
-        string repoRoot, string dbUrl, string devUrl, string env,
+        string repoRoot, string dbUrl, string env,
         bool yes, bool backupTaken, bool allowDestructive)
     {
         var isDev = env.Equals("dev", StringComparison.OrdinalIgnoreCase)
                     || env.Equals("scratch", StringComparison.OrdinalIgnoreCase);
 
-        DevDbBootstrap.EnsureExtensions(devUrl, repoRoot);
-        var atlas = new AtlasRunner(DesiredStateAssembler.WriteTemp(repoRoot), devUrl);
+        var runner = new PgSchemaDiffRunner(DesiredStateAssembler.WriteTempDir(repoRoot));
 
-        var plan = atlas.Plan(dbUrl);
-        var planSql = plan.StdOut.Trim();
-        if (!plan.Ok && planSql.Length == 0)
+        var plan = runner.Plan(dbUrl);
+        if (!plan.Ok)
         {
             Console.Error.WriteLine("[apply] could not compute plan:");
-            Console.Error.WriteLine(plan.StdErr.Trim());
+            Console.Error.WriteLine((plan.StdErr + plan.StdOut).Trim());
             return 1;
         }
-        if (planSql.Length == 0 || planSql.Contains("Schemas are synced", StringComparison.OrdinalIgnoreCase))
+        if (PgSchemaDiffRunner.IsInSync(plan.StdOut))
         {
             Console.WriteLine("[apply] no changes — target already in sync. Nothing to do.");
             return 0;
         }
+
+        var planSql = plan.StdOut;
+        var hazards = PgSchemaDiffRunner.Hazards(planSql);
 
         var gate = DeployGates.Evaluate(planSql, isDev, yes, backupTaken, allowDestructive);
         if (!gate.Allowed)
@@ -39,15 +40,16 @@ public static class ApplyCommand
             return 3;
         }
         Console.WriteLine($"[apply] gates: {gate.Reason}");
+        if (hazards.Count > 0) Console.WriteLine($"[apply] allowing hazards: {string.Join(", ", hazards)}");
 
         var historyPath = CapturePlan(repoRoot, env, planSql);
         Console.WriteLine($"[apply] captured plan → {Path.GetRelativePath(repoRoot, historyPath)} (audit-only, never replayed)");
 
-        var result = atlas.Apply(dbUrl, autoApprove: true);
+        var result = runner.Apply(dbUrl, hazards);
         Console.Write(result.StdOut);
         if (!result.Ok)
         {
-            Console.Error.WriteLine("[apply] atlas apply FAILED:");
+            Console.Error.WriteLine("[apply] pg-schema-diff apply FAILED:");
             Console.Error.WriteLine(result.StdErr.Trim());
             return 1;
         }
@@ -62,7 +64,7 @@ public static class ApplyCommand
         var stamp = DateTime.UtcNow.ToString("yyyyMMddTHHmmssZ");
         var path = Path.Combine(dir, $"{stamp}-{Sanitize(env)}.sql");
         File.WriteAllText(path,
-            $"-- forge-db apply plan (audit receipt — NOT replayable; schema/ + Atlas are the source of truth)\n"
+            "-- forge-db apply plan (audit receipt — NOT replayable; schema/ + pg-schema-diff are the source of truth)\n"
             + $"-- env: {env}    captured: {stamp}\n\n{planSql}\n");
         return path;
     }

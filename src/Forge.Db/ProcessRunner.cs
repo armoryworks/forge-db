@@ -3,7 +3,7 @@ using System.Text;
 
 namespace Forge.Db;
 
-/// <summary>Thin wrapper for running an external CLI (atlas) and capturing its output.</summary>
+/// <summary>Thin wrapper for running an external CLI (pg-schema-diff) and capturing its output.</summary>
 public static class ProcessRunner
 {
     public sealed record Result(int ExitCode, string StdOut, string StdErr)

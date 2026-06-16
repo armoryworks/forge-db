@@ -1,41 +1,37 @@
 namespace Forge.Db.Commands;
 
 /// <summary>
-/// <c>plan --db &lt;url&gt; --dev-url &lt;url&gt;</c> — render the SQL Atlas WOULD run to reconcile the
-/// target to desired state (docs/DESIGN §4). Pure read: no mutation. Flags any destructive
-/// statements so the operator sees them before an <c>apply</c>.
+/// <c>plan --db &lt;url&gt;</c> — render the migration SQL pg-schema-diff WOULD run to reconcile the
+/// target to desired state (docs/DESIGN §4). Pure read: no mutation. Surfaces the hazards
+/// pg-schema-diff flagged so the operator sees them before an <c>apply</c>.
 /// </summary>
 public static class PlanCommand
 {
-    public static int Run(string repoRoot, string dbUrl, string devUrl)
+    public static int Run(string repoRoot, string dbUrl)
     {
-        DevDbBootstrap.EnsureExtensions(devUrl, repoRoot);
-        var atlas = new AtlasRunner(DesiredStateAssembler.WriteTemp(repoRoot), devUrl);
-        var plan = atlas.Plan(dbUrl);
-        var sql = plan.StdOut.Trim();
+        var runner = new PgSchemaDiffRunner(DesiredStateAssembler.WriteTempDir(repoRoot));
+        var plan = runner.Plan(dbUrl);
 
-        if (!plan.Ok && sql.Length == 0)
+        if (!plan.Ok)
         {
-            Console.Error.WriteLine("[plan] atlas failed:");
-            Console.Error.WriteLine(plan.StdErr.Trim());
+            Console.Error.WriteLine("[plan] pg-schema-diff failed:");
+            Console.Error.WriteLine((plan.StdErr + plan.StdOut).Trim());
             return 1;
         }
 
-        if (sql.Length == 0 || sql.Contains("Schemas are synced", StringComparison.OrdinalIgnoreCase))
+        if (PgSchemaDiffRunner.IsInSync(plan.StdOut))
         {
             Console.WriteLine("[plan] no changes — target already matches desired state.");
             return 0;
         }
 
-        Console.WriteLine("[plan] Atlas would apply:");
-        Console.WriteLine(sql);
+        Console.WriteLine("[plan] pg-schema-diff would apply:");
+        Console.WriteLine(plan.StdOut.TrimEnd());
 
-        var destructive = DeployGates.DestructiveStatements(sql);
-        if (destructive.Count > 0)
-        {
-            Console.WriteLine($"[plan] ⚠ {destructive.Count} possibly-destructive statement(s) — apply requires --allow-destructive:");
-            foreach (var d in destructive) Console.WriteLine($"[plan]     {d}");
-        }
+        var hazards = PgSchemaDiffRunner.Hazards(plan.StdOut);
+        if (hazards.Count > 0)
+            Console.WriteLine($"[plan] ⚠ hazards: {string.Join(", ", hazards)} — apply must --allow-hazards these; "
+                + "DELETES_DATA additionally requires --allow-destructive.");
         return 0;
     }
 }

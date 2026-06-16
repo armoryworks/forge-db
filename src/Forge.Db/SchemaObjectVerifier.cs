@@ -3,13 +3,14 @@ using Npgsql;
 namespace Forge.Db;
 
 /// <summary>
-/// Explicit comparison of the schema objects Atlas's diff does NOT cover (docs/DESIGN §9 #1):
-/// <b>functions</b> and <b>triggers</b> (Atlas reported "synced" while the ledger immutability
-/// triggers were silently absent during the squash) and <b>extensions</b> (the Atlas free tier
-/// refuses CREATE EXTENSION, so we manage/verify them ourselves). Each authored file under
-/// schema/{extensions,functions,triggers} is one desired object (filename == object name); the live
-/// DB's non-extension, non-internal objects must match exactly. Extension-owned functions (pgvector)
-/// and FK-internal triggers are excluded so they never read as spurious drift.
+/// Belt-and-suspenders comparison of <b>extensions</b>, <b>functions</b>, and <b>triggers</b>
+/// (docs/DESIGN §9 #1). pg-schema-diff DOES diff all three, so this is no longer the sole safety net
+/// — but we keep it because the squash taught us a silent diff gap on the ledger immutability
+/// triggers is catastrophic, and pg-schema-diff itself documents that non-SQL function dependencies
+/// are "untrackable". Each authored file under schema/{extensions,functions,triggers} is one desired
+/// object (filename == object name); the live DB's non-extension, non-internal objects must match
+/// exactly. Extension-owned functions (pgvector) and FK-internal triggers are excluded so they never
+/// read as spurious drift.
 /// </summary>
 public static class SchemaObjectVerifier
 {

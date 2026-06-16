@@ -20,20 +20,28 @@ try
         case "baseline":
             return BaselineCommand.Run(repoRoot, opts.GetValueOrDefault("dump"));
 
+        case "assemble":
+        {
+            var outPath = opts.GetValueOrDefault("out") ?? Path.Combine(repoRoot, "desired.local.sql");
+            File.WriteAllText(outPath, DesiredStateAssembler.Assemble(repoRoot));
+            Console.WriteLine($"[assemble] wrote desired state → {outPath}");
+            return 0;
+        }
+
         case "plan":
-            return PlanCommand.Run(repoRoot, Required("db"), Required("dev-url"));
+            return PlanCommand.Run(repoRoot, Required("db"));
 
         case "verify":
-            return VerifyCommand.Run(repoRoot, Required("db"), Required("dev-url"));
+            return VerifyCommand.Run(repoRoot, Required("db"));
 
         case "apply":
-            return ApplyCommand.Run(repoRoot, Required("db"), Required("dev-url"),
+            return ApplyCommand.Run(repoRoot, Required("db"),
                 opts.GetValueOrDefault("env", "dev"),
                 opts.ContainsKey("yes"), opts.ContainsKey("backup-taken"), opts.ContainsKey("allow-destructive"));
 
         case "version":
             Console.WriteLine($"forge-db harness; repo={repoRoot}");
-            Console.Write(ProcessRunner.Run(Environment.GetEnvironmentVariable("ATLAS_BIN") ?? "atlas", ["version"]).StdOut);
+            Console.Write(ProcessRunner.Run(Environment.GetEnvironmentVariable("PG_SCHEMA_DIFF_BIN") ?? "pg-schema-diff", ["version"]).StdOut);
             return 0;
 
         default:
@@ -85,8 +93,7 @@ static string ResolveRepoRoot(string? explicitRoot)
     var dir = new DirectoryInfo(Directory.GetCurrentDirectory());
     while (dir is not null)
     {
-        if (File.Exists(Path.Combine(dir.FullName, "atlas.hcl")) ||
-            Directory.Exists(Path.Combine(dir.FullName, SchemaLayout.SchemaDir)))
+        if (Directory.Exists(Path.Combine(dir.FullName, SchemaLayout.SchemaDir)))
             return dir.FullName;
         dir = dir.Parent;
     }
@@ -96,24 +103,27 @@ static string ResolveRepoRoot(string? explicitRoot)
 static void PrintHelp()
 {
     Console.WriteLine("""
-        forge-db — declarative Postgres schema harness over Atlas
+        forge-db — declarative Postgres schema harness over pg-schema-diff (stripe/pg-schema-diff)
 
         Usage:
           forge-db baseline --dump <pg_dump.sql> [--repo <dir>]
               Split a canonical pg_dump --schema-only into the schema/ tree (one object per file).
 
-          forge-db plan    --db <url> --dev-url <url> [--repo <dir>]
-              Show the SQL Atlas would run to reconcile <db> to schema/. No mutation.
+          forge-db assemble [--out <file>] [--repo <dir>]
+              Assemble schema/ into a single ordered desired-state SQL (debug / inspection).
 
-          forge-db verify  --db <url> --dev-url <url> [--repo <dir>]
-              Assert <db> matches schema/ — atlas diff PLUS explicit pg_proc/pg_trigger check.
-              Exit non-zero on drift (for CI).
+          forge-db plan    --db <url> [--repo <dir>]
+              Show the migration SQL pg-schema-diff would run to reconcile <db> to schema/. No mutation.
 
-          forge-db apply   --db <url> --dev-url <url> [--env name]
-                           [--yes] [--backup-taken] [--allow-destructive]
+          forge-db verify  --db <url> [--repo <dir>]
+              Assert <db> matches schema/ — pg-schema-diff plan PLUS an explicit
+              pg_extension/pg_proc/pg_trigger check. Exit non-zero on drift (for CI).
+
+          forge-db apply   --db <url> [--env name] [--yes] [--backup-taken] [--allow-destructive]
               Reconcile <db> to schema/ behind safety gates; captures the plan to history/.
 
-        URLs are Atlas Postgres URLs, e.g.
+        --db is a Postgres connection string, e.g.
           postgres://postgres:pw@127.0.0.1:55432/forge?sslmode=disable
+        The connecting user needs CREATEDB (pg-schema-diff provisions its own temp database).
         """);
 }

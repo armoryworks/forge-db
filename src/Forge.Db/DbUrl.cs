@@ -1,9 +1,9 @@
 namespace Forge.Db;
 
 /// <summary>
-/// Converts a single Atlas-style Postgres URL (<c>postgres://user:pass@host:port/db?sslmode=…</c>)
-/// into an Npgsql connection string, so callers pass one <c>--db</c> value that both Atlas and the
-/// trigger/function verifier (Npgsql) can use.
+/// Converts a single Postgres URL (<c>postgres://user:pass@host:port/db?sslmode=…</c>) into an
+/// Npgsql connection string, so callers pass one <c>--db</c> value that both pg-schema-diff (which
+/// takes the URL directly) and the schema-object verifier (Npgsql) can use.
 /// </summary>
 public static class DbUrl
 {

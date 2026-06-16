@@ -4,28 +4,39 @@ namespace Forge.Db;
 
 /// <summary>
 /// Assembles the per-object <c>schema/</c> tree into a single ordered desired-state SQL file for
-/// Atlas. Two reasons this is necessary: (1) Atlas's <c>file://</c> source does not recurse into
-/// subdirectories, and (2) Atlas loads the desired state by executing it against its dev DB, so the
-/// statements must apply in dependency order. We emit only the objects Atlas (free tier) can
-/// process — tables and indexes — in this order:
-///   tables (CREATE TABLE + identity + PK/UQ/CK) → all FKs → indexes
-/// Extensions, functions, and triggers are excluded (Atlas-blind-spot objects forge-db owns; see
-/// SchemaObjectVerifier). FK constraints are split out of the table files and emitted after every
-/// table exists, which
+/// pg-schema-diff (<c>--to-dir</c>). Necessary because pg-schema-diff applies the desired DDL to its
+/// auto-managed temp DB in statement order — it does not topologically sort — so the statements must
+/// already be in dependency order. We emit:
+///   extensions → tables (CREATE TABLE + identity + PK/UQ/CK) → all FKs → indexes → functions →
+///   triggers → EF history keep-alive
+/// FK constraints are split out of the table files and emitted after every table exists, which
 /// dissolves circular-FK ordering problems. The file ordering in <c>schema/</c> is for humans; this
-/// is the machine ordering.
+/// is the machine ordering. (Unlike Atlas's free tier, pg-schema-diff runs CREATE EXTENSION and
+/// manages functions/triggers, so every object kind belongs here — no engine blind spots to dodge.)
 /// </summary>
 public static class DesiredStateAssembler
 {
+    // EF Core's standard migration-history table (EF 10). Injected into the desired state so the
+    // diff engine never plans to drop it; never written to the committed schema/ tree.
+    private const string EfHistoryKeepAlive = """
+        CREATE TABLE public."__EFMigrationsHistory" (
+            "MigrationId" character varying(150) NOT NULL,
+            "ProductVersion" character varying(32) NOT NULL
+        );
+        ALTER TABLE ONLY public."__EFMigrationsHistory"
+            ADD CONSTRAINT "PK___EFMigrationsHistory" PRIMARY KEY ("MigrationId");
+        """;
+
     public static string Assemble(string repoRoot)
     {
         var sb = new StringBuilder();
         var fks = new StringBuilder();
 
-        // NOTE: extensions are intentionally NOT emitted. The Atlas free tier rejects CREATE
-        // EXTENSION ("available to logged-in users only"), so — like triggers/functions — extensions
-        // are an Atlas blind spot forge-db owns explicitly: the dev DB is pre-seeded with them
-        // (DevDbBootstrap) and the live DB is checked by SchemaObjectVerifier, not Atlas.
+        // Extensions first: pg-schema-diff applies the desired DDL to its own auto-managed temp DB
+        // to compute the diff, so CREATE EXTENSION must run there for the vector-typed columns to
+        // resolve. (pg-schema-diff is MIT/FOSS and runs CREATE EXTENSION without any account — the
+        // reason we left Atlas; see docs/DESIGN §4.)
+        AppendDir(sb, Path.Combine(repoRoot, SchemaLayout.Extensions));
 
         // Tables: separate FK constraints (emitted last) from the rest.
         foreach (var file in SqlFiles(Path.Combine(repoRoot, SchemaLayout.Tables)))
@@ -37,20 +48,32 @@ public static class DesiredStateAssembler
 
         AppendDir(sb, Path.Combine(repoRoot, SchemaLayout.Indexes));
 
-        // extensions, functions, and triggers are NOT emitted: the Atlas free tier rejects all three
-        // ("available to logged-in users only"). They are forge-db-owned and verified explicitly by
-        // SchemaObjectVerifier — which is exactly the §9 #1 split (Atlas covers tables/indexes/
-        // constraints; forge-db covers the objects Atlas can't see).
+        // Functions then triggers (triggers depend on functions). pg-schema-diff manages both, so
+        // emitting them keeps the diff a true no-op and means pg-schema-diff natively covers the
+        // objects Atlas's free tier could not even see (§9 #1). SchemaObjectVerifier still
+        // double-checks extensions/functions/triggers as belt-and-suspenders.
+        AppendDir(sb, Path.Combine(repoRoot, SchemaLayout.Functions));
+        AppendDir(sb, Path.Combine(repoRoot, SchemaLayout.Triggers));
+
+        // EF owns __EFMigrationsHistory — it is deliberately NOT in the committed schema/ tree. But
+        // the diff engine would otherwise see a live table absent from desired state and plan a DROP.
+        // Inject its exact DDL as a keep-alive so the plan stays a no-op. (When the §6 cutover removes
+        // MigrateAsync the table becomes vestigial and this keep-alive can go.)
+        sb.Append('\n').Append(EfHistoryKeepAlive).Append('\n');
 
         return sb.ToString();
     }
 
-    /// <summary>Assemble and write to a temp .sql file; returns its path (caller may delete).</summary>
-    public static string WriteTemp(string repoRoot)
+    /// <summary>
+    /// Assemble and write to a fresh temp directory as a single <c>desired.sql</c>, returning the
+    /// directory — the shape pg-schema-diff's <c>--to-dir</c> expects.
+    /// </summary>
+    public static string WriteTempDir(string repoRoot)
     {
-        var path = Path.Combine(Path.GetTempPath(), $"forge-db-desired-{Guid.NewGuid():N}.sql");
-        File.WriteAllText(path, Assemble(repoRoot));
-        return path;
+        var dir = Path.Combine(Path.GetTempPath(), $"forge-db-desired-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(dir);
+        File.WriteAllText(Path.Combine(dir, "desired.sql"), Assemble(repoRoot));
+        return dir;
     }
 
     private static void AppendDir(StringBuilder sb, string dir)

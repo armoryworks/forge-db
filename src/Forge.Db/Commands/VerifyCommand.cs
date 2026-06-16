@@ -1,43 +1,49 @@
 namespace Forge.Db.Commands;
 
 /// <summary>
-/// <c>verify --db &lt;url&gt; --dev-url &lt;url&gt;</c> — assert a live DB matches the desired state.
-/// Two independent checks because Atlas's diff alone is NOT proof of equivalence (docs/DESIGN §9 #1):
-///   1. <c>atlas schema diff</c> for tables/columns/indexes/constraints.
-///   2. explicit <c>pg_proc</c>/<c>pg_trigger</c> comparison for functions + triggers.
-/// Exits non-zero on any drift (for CI).
+/// <c>verify --db &lt;url&gt;</c> — assert a live DB matches the desired state. Exits non-zero on any
+/// drift (for CI). Two independent checks:
+///   1. <c>pg-schema-diff plan</c> — an empty plan means tables/indexes/constraints/functions/
+///      triggers/extensions all match. (pg-schema-diff covers everything; unlike Atlas there is no
+///      object-kind it can't see.)
+///   2. an explicit <c>pg_extension</c>/<c>pg_proc</c>/<c>pg_trigger</c> assertion — belt-and-
+///      suspenders for the objects that burned us during the squash (docs/DESIGN §9 #1), and a guard
+///      against pg-schema-diff's own "untrackable function dependency" caveat.
 /// </summary>
 public static class VerifyCommand
 {
-    public static int Run(string repoRoot, string dbUrl, string devUrl)
+    public static int Run(string repoRoot, string dbUrl)
     {
         var ok = true;
 
-        DevDbBootstrap.EnsureExtensions(devUrl, repoRoot);
-        var atlas = new AtlasRunner(DesiredStateAssembler.WriteTemp(repoRoot), devUrl);
-        var diff = atlas.Diff(dbUrl);
-        var atlasSynced = diff.Ok && IsEmptyDiff(diff.StdOut);
-        if (atlasSynced)
+        var runner = new PgSchemaDiffRunner(DesiredStateAssembler.WriteTempDir(repoRoot));
+        var plan = runner.Plan(dbUrl);
+        if (!plan.Ok)
         {
-            Console.WriteLine("[verify] atlas schema diff: in sync ✓");
+            ok = false;
+            Console.Error.WriteLine("[verify] pg-schema-diff plan FAILED:");
+            Console.Error.WriteLine(Indent((plan.StdErr + plan.StdOut).Trim()));
+        }
+        else if (PgSchemaDiffRunner.IsInSync(plan.StdOut))
+        {
+            Console.WriteLine("[verify] pg-schema-diff: in sync ✓ (tables, indexes, constraints, functions, triggers, extensions)");
         }
         else
         {
             ok = false;
-            Console.Error.WriteLine("[verify] atlas schema diff: DRIFT ✗");
-            var detail = (diff.StdOut + diff.StdErr).Trim();
-            if (detail.Length > 0) Console.Error.WriteLine(Indent(detail));
+            Console.Error.WriteLine("[verify] pg-schema-diff: DRIFT ✗ — plan would run:");
+            Console.Error.WriteLine(Indent(plan.StdOut.Trim()));
         }
 
         var so = SchemaObjectVerifier.Verify(DbUrl.ToNpgsql(dbUrl), repoRoot);
         if (so.InSync)
         {
-            Console.WriteLine("[verify] extensions + functions + triggers (Atlas blind spots): in sync ✓");
+            Console.WriteLine("[verify] explicit pg_extension/pg_proc/pg_trigger check: in sync ✓");
         }
         else
         {
             ok = false;
-            Console.Error.WriteLine("[verify] extensions/functions/triggers: DRIFT ✗ (Atlas does NOT catch this — §9 #1)");
+            Console.Error.WriteLine("[verify] explicit extension/function/trigger check: DRIFT ✗ (§9 #1 guard)");
             Report("missing extension (in schema/, absent in DB)", so.MissingExtensions);
             Report("extra extension (in DB, not in schema/)", so.ExtraExtensions);
             Report("missing function (in schema/, absent in DB)", so.MissingFunctions);
@@ -48,12 +54,6 @@ public static class VerifyCommand
 
         Console.WriteLine(ok ? "[verify] PASS — live DB matches desired state." : "[verify] FAIL — drift detected.");
         return ok ? 0 : 1;
-    }
-
-    private static bool IsEmptyDiff(string stdout)
-    {
-        var s = stdout.Trim();
-        return s.Length == 0 || s.Contains("Schemas are synced", StringComparison.OrdinalIgnoreCase);
     }
 
     private static void Report(string label, IReadOnlyList<string> names)
