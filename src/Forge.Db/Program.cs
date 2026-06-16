@@ -40,9 +40,13 @@ try
                 opts.ContainsKey("yes"), opts.ContainsKey("backup-taken"), opts.ContainsKey("allow-destructive"));
 
         case "version":
-            Console.WriteLine($"forge-db harness; repo={repoRoot}");
-            Console.Write(ProcessRunner.Run(Environment.GetEnvironmentVariable("PG_SCHEMA_DIFF_BIN") ?? "pg-schema-diff", ["version"]).StdOut);
+        {
+            var v = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version ?? new Version(0, 0, 0);
+            Console.WriteLine($"forge-db {v.Major}.{v.Minor}.{v.Build}  (repo={repoRoot})");
+            var engine = ProcessRunner.Run(Environment.GetEnvironmentVariable("PG_SCHEMA_DIFF_BIN") ?? "pg-schema-diff", ["version"]);
+            Console.WriteLine($"engine:  pg-schema-diff {engine.StdOut.Trim()}");
             return 0;
+        }
 
         default:
             Console.Error.WriteLine($"unknown verb: {verb}");
