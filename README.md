@@ -32,3 +32,42 @@ kept in sync via a CI drift-check.
 > drift-check CI, and the owner-gated **no-op `apply` handoff** to the live install (deploy hold
 > stands). See [docs/DESIGN.md](docs/DESIGN.md): decision table (§7) and squash lessons (§9 — the
 > ledger triggers the squash silently dropped, caught only by tests).
+
+## Developing forge-db
+
+**This tooling is only needed to work on the schema or run the harness — not to run the Forge app.**
+The app gets its schema from forge-api today; forge-db is a dev / CI / deploy-time tool, so a
+self-hoster who only runs the stack never installs any of this.
+
+Prerequisites:
+- **.NET 10 SDK** + the EF tool: `dotnet tool install --global dotnet-ef`.
+- **[stripe/pg-schema-diff](https://github.com/stripe/pg-schema-diff)** — the diff engine (MIT, no
+  account). It ships **no prebuilt binaries**, so install via either:
+  - `go install github.com/stripe/pg-schema-diff/cmd/pg-schema-diff@v1.0.5` (pinned), or
+  - `brew install pg-schema-diff`.
+
+  Make sure it's on `PATH` (e.g. `$(go env GOPATH)/bin`) or set `PG_SCHEMA_DIFF_BIN`.
+- A **pgvector** Postgres (the schema declares the `vector` type, and pg-schema-diff provisions its
+  own temp DB on the target server — the connecting user needs `CREATEDB`). The project targets
+  `pgvector/pgvector:pg17`.
+
+Common commands:
+
+```bash
+# (one-time) seed schema/ from a canonical pg_dump --schema-only of the squashed baseline
+dotnet run --project src/Forge.Db -- baseline --dump baseline.schema.sql
+
+# inspect the assembled desired-state SQL
+dotnet run --project src/Forge.Db -- assemble --out /tmp/desired.sql
+
+# show what would change to reconcile a DB to schema/ (no mutation)
+dotnet run --project src/Forge.Db -- plan   --db "postgres://user:pw@host:5432/db?sslmode=disable"
+
+# assert a DB matches schema/ — exit non-zero on drift (this is what CI runs)
+dotnet run --project src/Forge.Db -- verify --db "postgres://user:pw@host:5432/db?sslmode=disable"
+
+dotnet test tests/Forge.Db.Tests
+```
+
+CI runs that same `verify` against the EF model via forge-api's `schema-drift-check` workflow.
+
