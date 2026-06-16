@@ -69,7 +69,8 @@ forge-db/
 │   ├── tables/                 #   one CREATE TABLE per file, incl. its PK/FK/constraints
 │   ├── indexes/                #   non-trivial / filtered / composite indexes
 │   ├── views/
-│   └── functions/
+│   ├── functions/              #   plpgsql functions (e.g. ledger immutability — see §9)
+│   └── triggers/               #   triggers (raw SQL; first-class here, unlike EF — see §9)
 │   #  NOTE: no enums/ dir — enums stay int + reference_data (§ decision 4)
 ├── data/                       # ordered, explicitly-idempotent backfill scripts (INPUT) — see §6.1
 ├── seed/                       # reference/lookup data that is schema-adjacent (reference_data groups)
@@ -106,8 +107,16 @@ safety. Verbs:
 |---|---|---|
 | `plan` | resolve target DB, render the SQL Atlas *would* run for review (no mutation) | `atlas schema apply --dry-run` (desired `schema/` vs live) |
 | `apply` | gate (env, backup taken, not-live-without-confirm, destructive policy), **capture the plan SQL to `history/` (§4.1)**, run any due `data/` backfills, apply, log `[DB-LIFECYCLE]`-style | `atlas schema apply` |
-| `verify` | assert live DB == desired state, exit non-zero on drift (for CI) | `atlas schema diff` → expect empty |
+| `verify` | assert live DB == desired state, exit non-zero on drift (for CI) — **must also compare triggers/functions explicitly (§9)** | `atlas schema diff` → expect empty |
 | `baseline` | (one-time) ingest the squash `pg_dump` into `schema/` | — |
+
+> ⚠️ **Atlas's diff blind spot (learned from the squash — §9).** `atlas schema diff` (in the version/
+> config used) compared tables/columns/indexes/constraints but **not triggers or functions** — it
+> reported "Schemas are synced" while the ledger immutability triggers were silently absent. forge-db
+> treats triggers/functions as first-class `schema/` objects, so `verify` and `plan` **must
+> explicitly diff `pg_proc` (functions) and `pg_trigger` (triggers)** — either via an Atlas config
+> that includes them or a supplementary check in the harness. Do not trust a bare `schema diff` as
+> proof of full equivalence.
 
 **Why C# and not just the Atlas CLI:** the coordination Forge needs lives above the diff —
 environment guardrails (never auto-apply against the Armory Plastics live DB; require an explicit
@@ -244,3 +253,46 @@ never replayed** (§4.1).
   schema-equivalence proof is green.
 - **Change-based tools remain rejected.** Sqitch/Flyway/Liquibase are not the target; forge-db is
   declarative/state-based by design.
+
+---
+
+## 9. Notes from the forge-api squash (the prerequisite — now executed)
+
+The §2 prerequisite (the EF migration squash) is **done and verified** on forge-api branch
+`chore/db-migration-squash` → **PR armoryworks/forge-api#18** (awaiting review/merge; deploy held).
+It collapses 133 migrations into one `InitialBaseline`, proven a schema no-op via `atlas schema diff`,
+and rehearsed end-to-end against the **real armoryworks-api install** (data 100% intact, reconciled
+schema identical to a fresh squashed install). That `InitialBaseline` + its `pg_dump` is the canonical
+SQL that will **seed forge-db's `schema/` tree** (the `baseline` verb, §4).
+
+Five findings from that work that **forge-db must honor** — several correct or sharpen this design:
+
+1. **Atlas does not diff triggers/functions (critical).** The squash dropped the `acct_journal_*`
+   immutability triggers + functions (raw plpgsql, not model-derived) and `atlas schema diff` still
+   reported *"Schemas are synced."* The gap was only caught by the test suite. **Consequence for
+   forge-db:** `verify`/`plan` cannot rely on a bare `schema diff` — they must explicitly compare
+   `pg_proc` and `pg_trigger` (§4 callout). The one-directional EF drift-check (§5) inherits this:
+   it too must cover triggers/functions, or it will pass while they drift. This is the single most
+   important lesson — forge-db's whole safety rests on the diff being complete.
+
+2. **Triggers/functions are first-class `schema/` objects.** EF couldn't express them (they lived in
+   a hand-written `migrationBuilder.Sql()` migration). In forge-db they belong in
+   `schema/functions/` + `schema/triggers/` as desired-state files — exactly the kind of object the
+   declarative model handles better than EF did. Seed `schema/triggers/acct_journal_*` from the
+   restored `RestoreLedgerImmutabilityTriggers` SQL.
+
+3. **Postgres truncates identifiers to 63 chars.** Several FK names exceed 63 chars and are stored
+   truncated (e.g. `fk_mrp_planned_orders__purchase_orders_released_purchase_order_id` → 63). Any
+   name-based comparison in the harness must match the 63-char truncation, not the authored name.
+
+4. **The deployed schema carries vestigial column defaults.** 66 legacy backfill defaults (bools
+   `false`, numerics `0`/`0.0`, enum/string `''`/`'Component'` etc.) live in the deployed schema and
+   are reproduced in the baseline → they will appear in `schema/tables/*.sql`. They are vestigial
+   (the app always sets values); a future `schema/` cleanup could drop them, but the squash kept them
+   so the cutover stays a no-op. Note for whoever curates the seeded `schema/` tree: these defaults
+   are intentional-for-now, not authored intent.
+
+5. **Identity FK names use a legacy double-underscore form.** The 4 `asp_net_user_*` → `asp_net_users`
+   FKs are named `fk_..._claims__asp_net_users_user_id` (double `_`) in the deployed schema. The
+   seeded `schema/` must preserve these exact names (forge-api pins them in `OnModelCreating`), or the
+   first forge-db diff will show spurious renames.
