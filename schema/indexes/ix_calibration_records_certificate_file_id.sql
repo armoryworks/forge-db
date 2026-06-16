@@ -1,0 +1,1 @@
+CREATE INDEX ix_calibration_records_certificate_file_id ON public.calibration_records USING btree (certificate_file_id);

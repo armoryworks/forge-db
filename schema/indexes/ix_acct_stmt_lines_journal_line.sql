@@ -1,0 +1,1 @@
+CREATE INDEX ix_acct_stmt_lines_journal_line ON public.acct_bank_statement_lines USING btree (matched_journal_line_id);

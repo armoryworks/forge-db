@@ -1,0 +1,1 @@
+CREATE INDEX ix_maintenance_predictions_acknowledged_by_user_id ON public.maintenance_predictions USING btree (acknowledged_by_user_id);

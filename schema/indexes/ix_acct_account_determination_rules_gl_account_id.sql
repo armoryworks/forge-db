@@ -1,0 +1,1 @@
+CREATE INDEX ix_acct_account_determination_rules_gl_account_id ON public.acct_account_determination_rules USING btree (gl_account_id);

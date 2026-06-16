@@ -1,0 +1,1 @@
+CREATE INDEX ix_schedule_milestones_sales_order_line_id ON public.schedule_milestones USING btree (sales_order_line_id);

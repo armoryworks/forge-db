@@ -1,10 +1,10 @@
 # forge-db — Design
 
-> **Status: DESIGN AGREED — not built yet.** `forge-db` is an empty repo
-> (`armoryworks/forge-db`). The §7 decisions are settled; this doc defines what forge-db becomes and
-> how it relates to the EF migration squash in
-> [`forge-api/docs/db/MIGRATION_SQUASH_PLAN.md`](../../forge-api/docs/db/MIGRATION_SQUASH_PLAN.md).
-> Cross-refs: [[schema-migration-direction]].
+> **Status: DESIGN AGREED · Phase 2 scaffold BUILT.** The §7 decisions are settled, and the
+> `schema/` tree + `Forge.Db` harness now exist with a green `verify` round-trip (see README). This
+> doc defines what forge-db is and how it relates to the EF migration squash in
+> [`forge-api/docs/db/MIGRATION_SQUASH_PLAN.md`](../../forge-api/docs/db/MIGRATION_SQUASH_PLAN.md)
+> (merged forge-api `a8260a75`, deployed). Cross-refs: [[schema-migration-direction]].
 
 ---
 
@@ -117,6 +117,16 @@ safety. Verbs:
 > explicitly diff `pg_proc` (functions) and `pg_trigger` (triggers)** — either via an Atlas config
 > that includes them or a supplementary check in the harness. Do not trust a bare `schema diff` as
 > proof of full equivalence.
+>
+> **Build finding (sharper still): the Atlas free tier won't *process* extensions, functions, or
+> triggers at all** — `CREATE EXTENSION/FUNCTION/TRIGGER` each fail with *"available to logged-in
+> users only."* So the harness hands Atlas **only** tables/indexes/constraints (the assembled
+> desired state excludes the other three), pre-seeds extensions into the dev DB so the
+> `vector`-typed tables load (`DevDbBootstrap`), and verifies **extensions + functions + triggers**
+> itself via `SchemaObjectVerifier` (`pg_extension` / `pg_proc` / `pg_trigger`). This is enforced by
+> a regression: drop a ledger trigger and Atlas still reports "synced" while `verify` fails. Also
+> note Atlas's `--exclude` selector must be **schema-qualified** (`public.__EFMigrationsHistory`);
+> the bare name silently doesn't match.
 
 **Why C# and not just the Atlas CLI:** the coordination Forge needs lives above the diff —
 environment guardrails (never auto-apply against the Armory Plastics live DB; require an explicit
@@ -258,8 +268,10 @@ never replayed** (§4.1).
 
 ## 9. Notes from the forge-api squash (the prerequisite — now executed)
 
-The §2 prerequisite (the EF migration squash) is **done and verified** on forge-api branch
-`chore/db-migration-squash` → **PR armoryworks/forge-api#18** (awaiting review/merge; deploy held).
+The §2 prerequisite (the EF migration squash) is **merged and deployed**: forge-api
+**PR armoryworks/forge-api#18** → `main a8260a75`, and the rebaseline deploy succeeded (the boot
+reconciler collapsed the live `__EFMigrationsHistory` to the baseline, data intact). The prod
+deploy hold otherwise stands.
 It collapses 133 migrations into one `InitialBaseline`, proven a schema no-op via `atlas schema diff`,
 and rehearsed end-to-end against the **real armoryworks-api install** (data 100% intact, reconciled
 schema identical to a fresh squashed install). That `InitialBaseline` + its `pg_dump` is the canonical

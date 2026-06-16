@@ -1,0 +1,1 @@
+CREATE INDEX ix_ppap_submissions_psw_signed_by_user_id ON public.ppap_submissions USING btree (psw_signed_by_user_id);

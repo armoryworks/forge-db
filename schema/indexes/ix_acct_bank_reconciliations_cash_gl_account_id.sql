@@ -1,0 +1,1 @@
+CREATE INDEX ix_acct_bank_reconciliations_cash_gl_account_id ON public.acct_bank_reconciliations USING btree (cash_gl_account_id);

@@ -1,0 +1,1 @@
+CREATE INDEX ix_kanban_trigger_logs_triggered_by_user_id ON public.kanban_trigger_logs USING btree (triggered_by_user_id);

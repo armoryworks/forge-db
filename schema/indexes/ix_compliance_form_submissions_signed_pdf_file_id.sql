@@ -1,0 +1,1 @@
+CREATE INDEX ix_compliance_form_submissions_signed_pdf_file_id ON public.compliance_form_submissions USING btree (signed_pdf_file_id);

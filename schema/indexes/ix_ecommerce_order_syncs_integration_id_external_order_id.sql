@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX ix_ecommerce_order_syncs_integration_id_external_order_id ON public.ecommerce_order_syncs USING btree (integration_id, external_order_id);

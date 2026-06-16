@@ -1,0 +1,12 @@
+# .NET build output
+bin/
+obj/
+*.user
+
+# Local scratch artifacts — the canonical pg_dump seed is consumed INTO schema/, never committed.
+/baseline.schema.sql
+*.local.sql
+
+# Editor
+.vs/
+.idea/

@@ -1,0 +1,1 @@
+# No views in the baseline yet. One CREATE VIEW per file when they arrive (docs/DESIGN.md §3).

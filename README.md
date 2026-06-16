@@ -8,9 +8,18 @@ The harness orchestrates [Atlas](https://atlasgo.io/) (declarative Postgres sche
 actual diff/apply; it does **not** hand-roll schema diffing. EF Core in `forge-api` stops generating
 migrations and becomes a lean query-mapping layer kept in sync via a CI drift-check.
 
-> **Status: design agreed; prerequisite executed, forge-db itself not built yet.** All key decisions
-> are settled (§7). The prerequisite EF migration squash — whose `InitialBaseline` seeds this repo's
-> `schema/` tree — is done and verified (forge-api PR #18, awaiting merge). See
-> [docs/DESIGN.md](docs/DESIGN.md): full design + decision table (§7), and **§9 — lessons from the
-> squash that forge-db must honor** (notably: Atlas's diff does not cover triggers/functions, so the
-> drift-check must compare them explicitly).
+> **Status: BUILT (Phase 2 scaffold).** The prerequisite EF migration squash is **merged**
+> (forge-api `a8260a75`, PR #18) and **deployed** — the boot reconciler collapsed the live
+> `__EFMigrationsHistory` to the baseline with data intact. From that proven baseline's canonical
+> `pg_dump`, this repo now contains:
+> - the desired-state **`schema/` tree** — 293 tables, 865 indexes, 2 functions, 2 triggers, 1
+>   extension, one object per file;
+> - the **`Forge.Db` harness** (`baseline` / `plan` / `verify` / `apply`) that orchestrates Atlas;
+> - a **green round-trip**: `verify` shows zero diff against the baseline, and the explicit
+>   `pg_proc` / `pg_trigger` / `pg_extension` check catches what Atlas can't — proven by a
+>   trigger-drop test where Atlas reports "synced" while `verify` correctly fails (§9 #1).
+>
+> Not yet done (separate efforts): the forge-api §5 lean-EF refactor + the one-directional
+> drift-check CI, and the owner-gated **no-op `apply` handoff** to the live install (deploy hold
+> stands). See [docs/DESIGN.md](docs/DESIGN.md): decision table (§7) and squash lessons (§9 —
+> notably that Atlas covers neither triggers/functions nor, on the free tier, extensions).

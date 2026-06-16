@@ -1,0 +1,1 @@
+CREATE INDEX ix_training_modules_is_onboarding_required ON public.training_modules USING btree (is_onboarding_required);

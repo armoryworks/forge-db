@@ -1,0 +1,1 @@
+CREATE INDEX ix_reorder_suggestions_resulting_purchase_order_id ON public.reorder_suggestions USING btree (resulting_purchase_order_id);

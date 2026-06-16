@@ -1,0 +1,1 @@
+CREATE INDEX ix_receiving_records_purchase_order_line_id ON public.receiving_records USING btree (purchase_order_line_id);

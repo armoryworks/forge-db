@@ -1,0 +1,1 @@
+CREATE INDEX ix_scheduled_operations_work_center_id_scheduled_start ON public.scheduled_operations USING btree (work_center_id, scheduled_start);

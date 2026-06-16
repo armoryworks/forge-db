@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX ix_entity_readiness_validators_entity_type_validator_id ON public.entity_readiness_validators USING btree (entity_type, validator_id);

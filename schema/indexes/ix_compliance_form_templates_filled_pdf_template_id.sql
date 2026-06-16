@@ -1,0 +1,1 @@
+CREATE INDEX ix_compliance_form_templates_filled_pdf_template_id ON public.compliance_form_templates USING btree (filled_pdf_template_id);

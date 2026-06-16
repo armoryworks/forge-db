@@ -1,0 +1,1 @@
+CREATE INDEX ix_engineering_change_orders_approved_by_id ON public.engineering_change_orders USING btree (approved_by_id);

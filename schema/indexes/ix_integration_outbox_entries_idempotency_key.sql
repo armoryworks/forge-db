@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX ix_integration_outbox_entries_idempotency_key ON public.integration_outbox_entries USING btree (idempotency_key);

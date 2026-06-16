@@ -1,0 +1,1 @@
+CREATE INDEX ix_consignment_transactions_purchase_order_id ON public.consignment_transactions USING btree (purchase_order_id);

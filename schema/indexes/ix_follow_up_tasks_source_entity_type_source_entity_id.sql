@@ -1,0 +1,1 @@
+CREATE INDEX ix_follow_up_tasks_source_entity_type_source_entity_id ON public.follow_up_tasks USING btree (source_entity_type, source_entity_id);

@@ -1,0 +1,1 @@
+CREATE INDEX ix_compliance_form_submissions_template_id ON public.compliance_form_submissions USING btree (template_id);

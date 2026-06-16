@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX ix_cost_calculation_inputs_cost_calculation_id ON public.cost_calculation_inputs USING btree (cost_calculation_id);

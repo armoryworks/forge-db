@@ -1,0 +1,1 @@
+CREATE INDEX ix_integration_outbox_entries_status_next_attempt ON public.integration_outbox_entries USING btree (status, next_attempt_at);

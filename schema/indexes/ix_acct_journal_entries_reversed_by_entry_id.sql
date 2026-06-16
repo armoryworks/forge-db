@@ -1,0 +1,1 @@
+CREATE INDEX ix_acct_journal_entries_reversed_by_entry_id ON public.acct_journal_entries USING btree (reversed_by_entry_id);

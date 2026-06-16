@@ -1,0 +1,1 @@
+CREATE INDEX ix_lead_outreach_preferences_cooldown_until ON public.lead_outreach_preferences USING btree (cooldown_until);

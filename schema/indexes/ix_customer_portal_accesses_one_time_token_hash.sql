@@ -1,0 +1,1 @@
+CREATE INDEX ix_customer_portal_accesses_one_time_token_hash ON public.customer_portal_accesses USING btree (one_time_token_hash);

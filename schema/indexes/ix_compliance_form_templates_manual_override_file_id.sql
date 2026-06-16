@@ -1,0 +1,1 @@
+CREATE INDEX ix_compliance_form_templates_manual_override_file_id ON public.compliance_form_templates USING btree (manual_override_file_id);

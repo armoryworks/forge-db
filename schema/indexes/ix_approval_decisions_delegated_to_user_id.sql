@@ -1,0 +1,1 @@
+CREATE INDEX ix_approval_decisions_delegated_to_user_id ON public.approval_decisions USING btree (delegated_to_user_id);

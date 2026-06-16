@@ -1,0 +1,1 @@
+CREATE INDEX ix_form_definition_versions_state_code_effective_date ON public.form_definition_versions USING btree (state_code, effective_date);

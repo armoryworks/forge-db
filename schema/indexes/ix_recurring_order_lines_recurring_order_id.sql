@@ -1,0 +1,1 @@
+CREATE INDEX ix_recurring_order_lines_recurring_order_id ON public.recurring_order_lines USING btree (recurring_order_id);
