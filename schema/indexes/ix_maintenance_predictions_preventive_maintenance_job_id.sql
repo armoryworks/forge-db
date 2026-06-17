@@ -1,0 +1,1 @@
+CREATE INDEX ix_maintenance_predictions_preventive_maintenance_job_id ON public.maintenance_predictions USING btree (preventive_maintenance_job_id);

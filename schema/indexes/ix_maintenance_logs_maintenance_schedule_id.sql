@@ -1,0 +1,1 @@
+CREATE INDEX ix_maintenance_logs_maintenance_schedule_id ON public.maintenance_logs USING btree (maintenance_schedule_id);

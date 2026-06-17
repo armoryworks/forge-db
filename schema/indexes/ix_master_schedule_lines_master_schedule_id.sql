@@ -1,0 +1,1 @@
+CREATE INDEX ix_master_schedule_lines_master_schedule_id ON public.master_schedule_lines USING btree (master_schedule_id);

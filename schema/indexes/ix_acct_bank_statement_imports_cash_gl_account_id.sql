@@ -1,0 +1,1 @@
+CREATE INDEX ix_acct_bank_statement_imports_cash_gl_account_id ON public.acct_bank_statement_imports USING btree (cash_gl_account_id);

@@ -1,0 +1,1 @@
+CREATE INDEX ix_mrp_planned_orders_parent_planned_order_id ON public.mrp_planned_orders USING btree (parent_planned_order_id);

@@ -1,0 +1,1 @@
+CREATE INDEX ix_prediction_feedbacks_recorded_by_user_id ON public.prediction_feedbacks USING btree (recorded_by_user_id);

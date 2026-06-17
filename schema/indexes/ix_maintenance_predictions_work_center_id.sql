@@ -1,0 +1,1 @@
+CREATE INDEX ix_maintenance_predictions_work_center_id ON public.maintenance_predictions USING btree (work_center_id);

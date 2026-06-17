@@ -1,0 +1,1 @@
+CREATE INDEX ix_qc_inspection_results_checklist_item_id ON public.qc_inspection_results USING btree (checklist_item_id);

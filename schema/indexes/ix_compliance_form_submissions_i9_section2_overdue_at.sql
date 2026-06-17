@@ -1,0 +1,1 @@
+CREATE INDEX ix_compliance_form_submissions_i9_section2_overdue_at ON public.compliance_form_submissions USING btree (i9_section2_overdue_at);

@@ -1,0 +1,1 @@
+CREATE INDEX ix_wbs_cost_entries_source_entity_type_source_entity_id ON public.wbs_cost_entries USING btree (source_entity_type, source_entity_id);

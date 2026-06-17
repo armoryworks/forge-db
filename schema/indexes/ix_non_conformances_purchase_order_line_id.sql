@@ -1,0 +1,1 @@
+CREATE INDEX ix_non_conformances_purchase_order_line_id ON public.non_conformances USING btree (purchase_order_line_id);

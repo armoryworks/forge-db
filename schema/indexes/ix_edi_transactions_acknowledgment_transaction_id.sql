@@ -1,0 +1,1 @@
+CREATE INDEX ix_edi_transactions_acknowledgment_transaction_id ON public.edi_transactions USING btree (acknowledgment_transaction_id);

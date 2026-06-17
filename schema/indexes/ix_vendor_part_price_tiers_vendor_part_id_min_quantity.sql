@@ -1,0 +1,1 @@
+CREATE INDEX ix_vendor_part_price_tiers_vendor_part_id_min_quantity ON public.vendor_part_price_tiers USING btree (vendor_part_id, min_quantity);

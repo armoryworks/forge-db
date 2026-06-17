@@ -1,0 +1,1 @@
+CREATE INDEX ix_work_center_qualifications_work_center_id ON public.work_center_qualifications USING btree (work_center_id);

@@ -1,0 +1,1 @@
+CREATE INDEX ix_receiving_inspections_qc_inspection_id ON public.receiving_inspections USING btree (qc_inspection_id);

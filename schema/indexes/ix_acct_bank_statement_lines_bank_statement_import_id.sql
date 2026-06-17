@@ -1,0 +1,1 @@
+CREATE INDEX ix_acct_bank_statement_lines_bank_statement_import_id ON public.acct_bank_statement_lines USING btree (bank_statement_import_id);

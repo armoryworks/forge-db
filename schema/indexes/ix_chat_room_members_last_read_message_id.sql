@@ -1,0 +1,1 @@
+CREATE INDEX ix_chat_room_members_last_read_message_id ON public.chat_room_members USING btree (last_read_message_id);

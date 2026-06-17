@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX ix_product_configurations_configuration_code ON public.product_configurations USING btree (configuration_code);

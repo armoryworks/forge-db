@@ -1,0 +1,1 @@
+CREATE INDEX ix_recurring_expenses_next_occurrence_date ON public.recurring_expenses USING btree (next_occurrence_date);

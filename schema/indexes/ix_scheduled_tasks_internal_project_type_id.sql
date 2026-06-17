@@ -1,0 +1,1 @@
+CREATE INDEX ix_scheduled_tasks_internal_project_type_id ON public.scheduled_tasks USING btree (internal_project_type_id);

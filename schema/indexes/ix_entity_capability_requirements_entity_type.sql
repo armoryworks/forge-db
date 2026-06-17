@@ -1,0 +1,1 @@
+CREATE INDEX ix_entity_capability_requirements_entity_type ON public.entity_capability_requirements USING btree (entity_type);

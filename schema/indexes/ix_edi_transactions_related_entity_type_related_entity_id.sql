@@ -1,0 +1,1 @@
+CREATE INDEX ix_edi_transactions_related_entity_type_related_entity_id ON public.edi_transactions USING btree (related_entity_type, related_entity_id);

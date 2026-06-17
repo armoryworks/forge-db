@@ -1,0 +1,1 @@
+CREATE INDEX ix_ecommerce_integrations_default_customer_id ON public.ecommerce_integrations USING btree (default_customer_id);

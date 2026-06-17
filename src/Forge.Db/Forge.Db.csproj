@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Forge.Db</RootNamespace>
+    <AssemblyName>forge-db</AssemblyName>
+    <!-- Pre-1.0: forge-db is not cut over yet and its CLI surface isn't stable. Matches the org's
+         pre-beta convention (forge-api is on 0.0.x). Bump to 1.0.0 only at the real cutover. -->
+    <Version>0.1.0</Version>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Npgsql" Version="9.0.3" />
+  </ItemGroup>
+
+</Project>

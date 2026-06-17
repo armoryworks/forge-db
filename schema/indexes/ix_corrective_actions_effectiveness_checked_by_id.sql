@@ -1,0 +1,1 @@
+CREATE INDEX ix_corrective_actions_effectiveness_checked_by_id ON public.corrective_actions USING btree (effectiveness_checked_by_id);

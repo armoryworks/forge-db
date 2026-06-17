@@ -1,0 +1,1 @@
+CREATE INDEX ix_time_correction_logs_corrected_by_user_id ON public.time_correction_logs USING btree (corrected_by_user_id);

@@ -1,0 +1,1 @@
+CREATE INDEX ix_acct_journal_template_lines_template ON public.acct_journal_template_lines USING btree (journal_template_id);

@@ -1,0 +1,1 @@
+CREATE INDEX ix_training_path_enrollments_assigned_by_user_id ON public.training_path_enrollments USING btree (assigned_by_user_id);

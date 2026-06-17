@@ -1,0 +1,1 @@
+CREATE INDEX ix_compliance_form_submissions_i9_employer_user_id ON public.compliance_form_submissions USING btree (i9_employer_user_id);

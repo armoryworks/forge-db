@@ -1,0 +1,1 @@
+CREATE INDEX ix_corrective_actions_root_cause_analyzed_by_id ON public.corrective_actions USING btree (root_cause_analyzed_by_id);

@@ -1,0 +1,1 @@
+CREATE INDEX ix_product_configurations_configurator_id ON public.product_configurations USING btree (configurator_id);

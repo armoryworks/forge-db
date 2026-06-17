@@ -1,0 +1,1 @@
+CREATE INDEX ix_edi_trading_partners_qualifier_id_qualifier_value ON public.edi_trading_partners USING btree (qualifier_id, qualifier_value);

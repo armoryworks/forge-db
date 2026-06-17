@@ -1,0 +1,1 @@
+CREATE INDEX ix_maintenance_schedules_maintenance_job_id ON public.maintenance_schedules USING btree (maintenance_job_id);

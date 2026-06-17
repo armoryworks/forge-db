@@ -1,0 +1,1 @@
+CREATE INDEX ix_entity_readiness_validators_entity_type ON public.entity_readiness_validators USING btree (entity_type);

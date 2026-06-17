@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX ix_announcement_acknowledgments_announcement_id_user_id ON public.announcement_acknowledgments USING btree (announcement_id, user_id);

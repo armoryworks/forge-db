@@ -1,0 +1,1 @@
+CREATE INDEX ix_spc_measurements_characteristic_id_subgroup_number ON public.spc_measurements USING btree (characteristic_id, subgroup_number);

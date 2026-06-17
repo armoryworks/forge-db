@@ -1,0 +1,1 @@
+CREATE INDEX ix_demand_forecasts_applied_to_master_schedule_id ON public.demand_forecasts USING btree (applied_to_master_schedule_id);

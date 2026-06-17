@@ -1,10 +1,10 @@
 # forge-db — Design
 
-> **Status: DESIGN AGREED — not built yet.** `forge-db` is an empty repo
-> (`armoryworks/forge-db`). The §7 decisions are settled; this doc defines what forge-db becomes and
-> how it relates to the EF migration squash in
-> [`forge-api/docs/db/MIGRATION_SQUASH_PLAN.md`](../../forge-api/docs/db/MIGRATION_SQUASH_PLAN.md).
-> Cross-refs: [[schema-migration-direction]].
+> **Status: DESIGN AGREED · Phase 2 scaffold BUILT.** The §7 decisions are settled, and the
+> `schema/` tree + `Forge.Db` harness now exist with a green `verify` round-trip (see README). This
+> doc defines what forge-db is and how it relates to the EF migration squash in
+> [`forge-api/docs/db/MIGRATION_SQUASH_PLAN.md`](../../forge-api/docs/db/MIGRATION_SQUASH_PLAN.md)
+> (merged forge-api `a8260a75`, deployed). Cross-refs: [[schema-migration-direction]].
 
 ---
 
@@ -24,15 +24,15 @@ migration chain. forge-db reproduces that *model* for Postgres:
 |---|---|
 | `.sqlproj` (per-object SQL scripts = desired state) | the `schema/` script tree (§3) |
 | `.dacpac` (compiled desired state) | the assembled desired-state SQL handed to the diff engine |
-| `sqlpackage /Action:Publish` (diff + apply) | the C# harness orchestrating Atlas (§4) |
-| `__SchemaVersion` bookkeeping | Postgres' own catalog + Atlas' applied-state tracking |
+| `sqlpackage /Action:Publish` (diff + apply) | the C# harness orchestrating pg-schema-diff (§4) |
+| `__SchemaVersion` bookkeeping | Postgres' own catalog (pg-schema-diff is stateless — it diffs desired-vs-live each run, no applied-state tracking) |
 
 **Key decision (settled):** the harness does **not** hand-roll the schema-diff logic. Computing a
-correct `ALTER` set from "desired vs live" for Postgres is exactly what **Atlas** (declarative,
-first-class Postgres) already does — `migra` is the fallback engine. The C# is **coordination /
-scaffolding**: it owns *when*, *against what*, *in what order*, with *what safety gates* — Atlas
-owns the diff correctness. This is the cheap, low-risk half of the dacpac model; reimplementing the
-diff engine is the expensive, correctness-critical half we deliberately skip.
+correct `ALTER` set from "desired vs live" for Postgres is exactly what **pg-schema-diff**
+(stripe/pg-schema-diff, MIT, no registration) already does. The C# is **coordination /
+scaffolding**: it owns *when*, *against what*, *in what order*, with *what safety gates* —
+pg-schema-diff owns the diff correctness. This is the cheap, low-risk half of the dacpac model;
+reimplementing the diff engine is the expensive, correctness-critical half we deliberately skip.
 
 ---
 
@@ -47,7 +47,7 @@ canonical SQL.
 Phase 1 (forge-api)            Phase 2 (forge-db) — this doc
 ─────────────────────         ──────────────────────────────
 squash 132 → InitialBaseline   seed schema/ tree from baseline pg_dump
-  │  prove schema-equivalence    │  stand up C# harness over Atlas
+  │  prove schema-equivalence    │  stand up C# harness over pg-schema-diff
   │  (§3.3 of squash plan)       │  CI drift-check: EF model ⟷ forge-db schema
   ▼                              ▼
 pg_dump --schema-only  ───────▶  schema/ desired-state scripts
@@ -78,7 +78,7 @@ forge-db/
 ├── src/Forge.Db/               # C# deploy harness (the "sqlpackage" role)
 │   ├── Program.cs              #   CLI entrypoint: plan | apply | verify | baseline
 │   └── ...
-├── atlas.hcl                   # Atlas project: dev-DB URL, schema src = ./schema
+│   #  NOTE: no project config file — the harness drives pg-schema-diff purely via CLI flags
 ├── tests/                      # harness tests + golden schema-equivalence fixtures
 └── docs/DESIGN.md              # this file
 ```
@@ -94,56 +94,76 @@ engine derives the `ALTER`. This is the single most important discipline: the tr
 
 **Naming/constraint discipline (carried from the squash plan §4):** explicit, snake_case
 constraint and index names on every object. The accounting `acct_*` configs already do this; it's
-what lets the baseline export to clean SQL and lets Atlas produce stable, readable diffs.
+what lets the baseline export to clean SQL and lets pg-schema-diff produce stable, readable diffs.
 
 ---
 
-## 4. The C# harness ↔ Atlas boundary
+## 4. The C# harness ↔ pg-schema-diff boundary
 
-The harness is a thin .NET CLI (`Forge.Db`) that orchestrates Atlas and enforces Forge-specific
-safety. Verbs:
+The harness is a thin .NET CLI (`Forge.Db`) that orchestrates pg-schema-diff and enforces
+Forge-specific safety. Verbs:
 
-| Verb | What the harness does | What Atlas does |
+| Verb | What the harness does | What pg-schema-diff does |
 |---|---|---|
-| `plan` | resolve target DB, render the SQL Atlas *would* run for review (no mutation) | `atlas schema apply --dry-run` (desired `schema/` vs live) |
-| `apply` | gate (env, backup taken, not-live-without-confirm, destructive policy), **capture the plan SQL to `history/` (§4.1)**, run any due `data/` backfills, apply, log `[DB-LIFECYCLE]`-style | `atlas schema apply` |
-| `verify` | assert live DB == desired state, exit non-zero on drift (for CI) — **must also compare triggers/functions explicitly (§9)** | `atlas schema diff` → expect empty |
+| `plan` | resolve target DB, render the migration SQL pg-schema-diff *would* run for review (no mutation); an empty plan means in-sync | `pg-schema-diff plan --from-dsn <db> --to-dir <dir>` (desired `schema/` vs live) |
+| `apply` | gate (env, backup taken, not-live-without-confirm, destructive policy), **capture the plan SQL to `history/` (§4.1)**, run any due `data/` backfills, apply, log `[DB-LIFECYCLE]`-style | `pg-schema-diff apply --from-dsn <db> --to-dir <dir> --skip-confirm-prompt --allow-hazards <LIST>` |
+| `verify` | assert live DB == desired state, exit non-zero on drift (for CI) — **also compares triggers/functions explicitly as belt-and-suspenders (§9)** | `pg-schema-diff plan` → expect empty |
 | `baseline` | (one-time) ingest the squash `pg_dump` into `schema/` | — |
 
-> ⚠️ **Atlas's diff blind spot (learned from the squash — §9).** `atlas schema diff` (in the version/
-> config used) compared tables/columns/indexes/constraints but **not triggers or functions** — it
-> reported "Schemas are synced" while the ledger immutability triggers were silently absent. forge-db
-> treats triggers/functions as first-class `schema/` objects, so `verify` and `plan` **must
-> explicitly diff `pg_proc` (functions) and `pg_trigger` (triggers)** — either via an Atlas config
-> that includes them or a supplementary check in the harness. Do not trust a bare `schema diff` as
-> proof of full equivalence.
+> ✅ **The engine now covers triggers/functions/extensions — but we keep an explicit check anyway
+> (learned from the squash — §9).** pg-schema-diff **does** diff functions and triggers and runs
+> `CREATE EXTENSION` natively, so the engine itself now covers the objects that Atlas's free tier
+> couldn't (a strict improvement over Atlas-free, which gated extensions/functions/triggers behind
+> registration). It also natively handles our pgvector `vector(384)` columns and identity columns.
+> **Even so, forge-db keeps the explicit `pg_extension` / `pg_proc` / `pg_trigger` comparison
+> (`SchemaObjectVerifier`) as belt-and-suspenders**, justified by (a) the squash lesson that a silent
+> diff gap is catastrophic for ledger immutability — a single missed trigger broke append-only — and
+> (b) pg-schema-diff's own documented caveat that non-SQL function dependencies are *untrackable*
+> (it flags `HAS_UNTRACKABLE_DEPENDENCIES`). So `verify`/`plan` rely on pg-schema-diff for the diff
+> **and** explicitly compare `pg_extension`, `pg_proc` (functions), and `pg_trigger` (triggers). This
+> is enforced by a regression: drop a ledger trigger and the trigger-drop now trips **both** layers —
+> pg-schema-diff plans the re-create *and* the explicit `SchemaObjectVerifier` check fails.
+>
+> **The EF-history table is kept out of the diff by injection, not exclusion.** Rather than an
+> exclude selector, the harness injects the exact `__EFMigrationsHistory` DDL into the assembled
+> desired state as a *keep-alive*, so pg-schema-diff sees it on both sides and never plans a `DROP`.
+> (Atlas used a schema-qualified `--exclude`; that mechanism is gone.)
 
-**Why C# and not just the Atlas CLI:** the coordination Forge needs lives above the diff —
+**Desired state is a directory of plain DDL.** pg-schema-diff takes a `--to-dir` of `.sql` files
+applied in **statement order (no topological sort)**, so the harness's `DesiredStateAssembler` emits
+a single ordered file: extensions → tables → FKs → indexes → functions → triggers → the injected
+`__EFMigrationsHistory` keep-alive. pg-schema-diff also **auto-manages its own temporary database**
+on the target server to compute the diff (the connecting user needs `CREATEDB`); there is **no
+separate dev-URL to provision** — the harness needs no dev-DB bootstrap step.
+
+**Why C# and not just the pg-schema-diff CLI:** the coordination Forge needs lives above the diff —
 environment guardrails (never auto-apply against the Armory Plastics live DB; require an explicit
-flag + a fresh backup), the destructive-change policy (block column/table drops unless
-`--allow-destructive` is passed for that run, mirroring dacpac's `BlockOnPossibleDataLoss`),
-capturing the audit receipt, sequencing data backfills around the schema apply, structured logging
-consistent with the existing boot logs, and exit-code contracts for CI. Language is C# to match the
-rest of the stack and reuse config/secrets plumbing; nothing here is C#-specific if a better fit
-emerges.
+flag + a fresh backup), the destructive-change policy (pg-schema-diff flags *hazards* — e.g.
+`DELETES_DATA`, `INDEX_BUILD`, `HAS_UNTRACKABLE_DEPENDENCIES` — and `apply` must `--allow-hazards`
+them; the harness's `DeployGates` treat `DELETES_DATA` and `DROP` statements as destructive and
+**block them unless `--allow-destructive` is passed** for that run, mirroring dacpac's
+`BlockOnPossibleDataLoss`), capturing the audit receipt, sequencing data backfills around the schema
+apply, structured logging consistent with the existing boot logs, and exit-code contracts for CI.
+Language is C# to match the rest of the stack and reuse config/secrets plumbing; nothing here is
+C#-specific if a better fit emerges.
 
-**Idempotency is free for DDL — do not conflate it with the archive.** `atlas schema apply` is
-inherently idempotent: a second run computes an empty diff and is a no-op. The harness does **not**
+**Idempotency is free for DDL — do not conflate it with the archive.** `pg-schema-diff apply` is
+inherently idempotent: a second run computes an empty plan and is a no-op. The harness does **not**
 hand-generate SQL to *achieve* idempotency; declarative apply already provides it. The only place
-idempotency must be hand-engineered is data backfills (§6.1), which Atlas does not generate.
+idempotency must be hand-engineered is data backfills (§6.1), which pg-schema-diff does not generate.
 
 ### 4.1 The audit archive (`history/`)
 
 We deploy declarative-pure (no versioned migration files as the apply mechanism — §decision 2), but
 we still want a human-readable record of what each deploy changed. So on every `apply` the harness
-**captures Atlas's own plan SQL** (`schema apply --dry-run` output) and writes it to
+**captures pg-schema-diff's own `plan` output** and writes it to
 `history/<timestamp>-<env>.sql` *before* applying.
 
-- **Atlas generates the SQL; the harness only captures it.** C# never computes a diff or synthesizes
-  DDL — that would rebuild the one thing we chose not to build.
-- **Audit-only, non-replayable.** These files are *receipts, not recipes.* The `schema/` tree + Atlas
-  remain the only things that determine state. Replaying a `history/` file is never a supported
-  operation; the harness will not read from `history/`. (Optionally also write a row to a
+- **pg-schema-diff generates the SQL; the harness only captures it.** C# never computes a diff or
+  synthesizes DDL — that would rebuild the one thing we chose not to build.
+- **Audit-only, non-replayable.** These files are *receipts, not recipes.* The `schema/` tree +
+  pg-schema-diff remain the only things that determine state. Replaying a `history/` file is never a
+  supported operation; the harness will not read from `history/`. (Optionally also write a row to a
   `schema_change_log` table for in-DB audit — same audit-only rule.)
 - This recovers the one thing declarative-pure gives up (a per-change reviewable artifact) without
   making that artifact a second source of truth.
@@ -210,9 +230,10 @@ holds real data and the 132 historical migration IDs. The cutover sequence is:
 
 ### 6.1 Data backfills (the real idempotency gap)
 
-Atlas generates **DDL**, never **data**. The classic coupled change — add a `NOT NULL` column →
-backfill existing rows → enforce the constraint — cannot be expressed as pure desired state. So
-forge-db needs a `data/` area for hand-written backfills, run in coordination with the schema apply:
+pg-schema-diff generates **DDL**, never **data**. The classic coupled change — add a `NOT NULL`
+column → backfill existing rows → enforce the constraint — cannot be expressed as pure desired
+state. So forge-db needs a `data/` area for hand-written backfills, run in coordination with the
+schema apply:
 
 - **Ordered + applied-once + tracked.** Each script runs once; the harness records applied scripts
   (a `data_migration_log` table) so re-deploys skip them. This is the *one* place forge-db is
@@ -222,7 +243,7 @@ forge-db needs a `data/` area for hand-written backfills, run in coordination wi
 - **Sequencing with DDL.** Where a backfill must interleave (add nullable column → backfill → set
   `NOT NULL`), the harness applies it as: schema apply (nullable col) → due `data/` scripts →
   schema apply (constraint). Splitting such a change across two desired-state steps + a backfill is
-  a documented authoring pattern, not an Atlas feature.
+  a documented authoring pattern, not a pg-schema-diff feature.
 
 This is distinct from the `history/` audit archive (§4.1): `data/` is an *input* you author;
 `history/` is an *output* you never touch.
@@ -234,7 +255,7 @@ This is distinct from the `history/` audit archive (§4.1): `data/` is an *input
 | # | Decision | Choice |
 |---|---|---|
 | 1 | **Deploy location** | Deploy-time `apply` in forge-deploy/CI; **boot is read-only** (`verify`, refuse-on-drift). `MigrateAsync()` removed from boot. (§6) |
-| 2 | **Atlas model** | **Declarative-pure** (`atlas schema apply`). No versioned migration files as the apply mechanism; audit handled by capturing the plan to `history/` (§4.1). |
+| 2 | **Diff engine** | **stripe/pg-schema-diff** (MIT, no registration). Declarative-pure: `pg-schema-diff plan` computes the migration from `schema/` vs live; no versioned migration files; audit via `history/` capture (§4.1). *Atlas was the original choice, but its free tier gates `CREATE EXTENSION`/`FUNCTION`/`TRIGGER` behind registration — unacceptable for an OSS self-host stack — so it was dropped.* |
 | 3 | **Destructive-change policy** | **Block by default**, override per-run with `--allow-destructive` (dacpac `BlockOnPossibleDataLoss` parity). (§4) |
 | 4 | **Enum strategy** | **Keep `int` + `reference_data`.** No native PG enums — they fight declarative apply (`ALTER TYPE ADD VALUE`) and app-layer enforcement already exists. No `schema/enums/` dir. |
 | 5 | **Repo coupling / drift-check** | **One-directional**: forge-api CI checks out forge-db at a pinned ref and `verify`s the EF model conforms to `schema/`. EF wrong on mismatch. No submodule, no artifact pipeline. (§5) |
@@ -258,28 +279,37 @@ never replayed** (§4.1).
 
 ## 9. Notes from the forge-api squash (the prerequisite — now executed)
 
-The §2 prerequisite (the EF migration squash) is **done and verified** on forge-api branch
-`chore/db-migration-squash` → **PR armoryworks/forge-api#18** (awaiting review/merge; deploy held).
-It collapses 133 migrations into one `InitialBaseline`, proven a schema no-op via `atlas schema diff`,
-and rehearsed end-to-end against the **real armoryworks-api install** (data 100% intact, reconciled
+The §2 prerequisite (the EF migration squash) is **merged and deployed**: forge-api
+**PR armoryworks/forge-api#18** → `main a8260a75`, and the rebaseline deploy succeeded (the boot
+reconciler collapsed the live `__EFMigrationsHistory` to the baseline, data intact). The prod
+deploy hold otherwise stands.
+It collapses 133 migrations into one `InitialBaseline`, proven a schema no-op via the schema-diff
+check, and rehearsed end-to-end against the **real armoryworks-api install** (data 100% intact, reconciled
 schema identical to a fresh squashed install). That `InitialBaseline` + its `pg_dump` is the canonical
 SQL that will **seed forge-db's `schema/` tree** (the `baseline` verb, §4).
 
 Five findings from that work that **forge-db must honor** — several correct or sharpen this design:
 
-1. **Atlas does not diff triggers/functions (critical).** The squash dropped the `acct_journal_*`
-   immutability triggers + functions (raw plpgsql, not model-derived) and `atlas schema diff` still
-   reported *"Schemas are synced."* The gap was only caught by the test suite. **Consequence for
-   forge-db:** `verify`/`plan` cannot rely on a bare `schema diff` — they must explicitly compare
-   `pg_proc` and `pg_trigger` (§4 callout). The one-directional EF drift-check (§5) inherits this:
-   it too must cover triggers/functions, or it will pass while they drift. This is the single most
-   important lesson — forge-db's whole safety rests on the diff being complete.
+1. **A silent diff gap on triggers/functions is catastrophic (critical).** The squash silently
+   dropped the `acct_journal_*` immutability triggers + functions (raw plpgsql, not model-derived)
+   and the schema-diff check then in use still reported *"Schemas are synced."* The gap was only
+   caught by the test suite — a single missed immutability trigger broke ledger append-only.
+   pg-schema-diff is a strict improvement here: it **does** diff functions and triggers, so the
+   engine now covers them. **But the lesson stands:** `verify`/`plan` still explicitly compare
+   `pg_proc` and `pg_trigger` (the `SchemaObjectVerifier`, §4 callout) as belt-and-suspenders,
+   because a silent diff gap on these objects is unacceptable for ledger immutability and because
+   pg-schema-diff itself flags non-SQL function dependencies as *untrackable*. The trigger-drop
+   regression now trips **both** layers (the engine plans the re-create *and* the explicit check
+   fails). The one-directional EF drift-check (§5) inherits this: it too covers triggers/functions,
+   or it would pass while they drift. forge-db's whole safety rests on the diff being complete.
 
-2. **Triggers/functions are first-class `schema/` objects.** EF couldn't express them (they lived in
-   a hand-written `migrationBuilder.Sql()` migration). In forge-db they belong in
-   `schema/functions/` + `schema/triggers/` as desired-state files — exactly the kind of object the
-   declarative model handles better than EF did. Seed `schema/triggers/acct_journal_*` from the
-   restored `RestoreLedgerImmutabilityTriggers` SQL.
+2. **Triggers/functions are first-class `schema/` objects — and pg-schema-diff diffs them.** EF
+   couldn't express them (they lived in a hand-written `migrationBuilder.Sql()` migration). In
+   forge-db they belong in `schema/functions/` + `schema/triggers/` as desired-state files —
+   exactly the kind of object the declarative model handles better than EF did, and that
+   pg-schema-diff natively reconciles (unlike Atlas-free, which wouldn't even process
+   `CREATE FUNCTION`/`TRIGGER`). Seed `schema/triggers/acct_journal_*` from the restored
+   `RestoreLedgerImmutabilityTriggers` SQL.
 
 3. **Postgres truncates identifiers to 63 chars.** Several FK names exceed 63 chars and are stored
    truncated (e.g. `fk_mrp_planned_orders__purchase_orders_released_purchase_order_id` → 63). Any
