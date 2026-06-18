@@ -1,0 +1,9 @@
+# Build the image from sources only; keep local build output and git metadata out.
+**/bin/
+**/obj/
+.git/
+.github/
+tests/
+docs/
+*.md
+desired.local.sql
