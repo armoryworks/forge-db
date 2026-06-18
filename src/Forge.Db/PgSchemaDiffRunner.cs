@@ -19,6 +19,16 @@ public sealed partial class PgSchemaDiffRunner
     private readonly string _bin;
     private readonly string _desiredDir;
 
+    // Schemas owned by runtime components, not forge-db. Excluded from the diff so a
+    // reconcile never plans to drop them: Hangfire (Hangfire.PostgreSql) installs and
+    // migrates its own "hangfire" schema at app startup, entirely outside the desired
+    // state. Without this, a reconcile against a live DB plans DROP TABLE for every
+    // Hangfire table.
+    private static readonly string[] ExcludedSchemas = ["hangfire"];
+
+    private static IEnumerable<string> ExcludeArgs() =>
+        ExcludedSchemas.SelectMany(s => new[] { "--exclude-schema", s });
+
     public PgSchemaDiffRunner(string desiredDir, string? bin = null)
     {
         _bin = bin ?? Environment.GetEnvironmentVariable("PG_SCHEMA_DIFF_BIN") ?? "pg-schema-diff";
@@ -31,6 +41,7 @@ public sealed partial class PgSchemaDiffRunner
         "plan",
         "--from-dsn", fromDsn,
         "--to-dir", _desiredDir,
+        .. ExcludeArgs(),
     ]);
 
     /// <summary>Apply the desired state. Caller is responsible for gates; pass the approved hazards.</summary>
@@ -43,6 +54,7 @@ public sealed partial class PgSchemaDiffRunner
             "--to-dir", _desiredDir,
             "--skip-confirm-prompt",
         };
+        args.AddRange(ExcludeArgs());
         if (allowHazards.Count > 0)
         {
             args.Add("--allow-hazards");

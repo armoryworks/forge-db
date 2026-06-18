@@ -27,6 +27,18 @@ public static class DesiredStateAssembler
             ADD CONSTRAINT "PK___EFMigrationsHistory" PRIMARY KEY ("MigrationId");
         """;
 
+    // The app creates job_number_seq at runtime (job-number generation), so it is in the
+    // live DB but absent from the EF-migration baseline / committed schema/ tree. Injected
+    // as a keep-alive (default bigint sequence) so the diff never plans to DROP it.
+    private const string JobNumberSeqKeepAlive = """
+        CREATE SEQUENCE public.job_number_seq
+            START WITH 1
+            INCREMENT BY 1
+            NO MINVALUE
+            NO MAXVALUE
+            CACHE 1;
+        """;
+
     public static string Assemble(string repoRoot)
     {
         var sb = new StringBuilder();
@@ -60,6 +72,10 @@ public static class DesiredStateAssembler
         // Inject its exact DDL as a keep-alive so the plan stays a no-op. (When the §6 cutover removes
         // MigrateAsync the table becomes vestigial and this keep-alive can go.)
         sb.Append('\n').Append(EfHistoryKeepAlive).Append('\n');
+
+        // App-runtime objects not in the committed schema/ tree (see consts above) —
+        // keep-alives so the diff never plans to drop them.
+        sb.Append('\n').Append(JobNumberSeqKeepAlive).Append('\n');
 
         return sb.ToString();
     }

@@ -7,7 +7,7 @@ CREATE TABLE public.storage_locations (
     description character varying(500),
     sort_order integer NOT NULL,
     is_active boolean NOT NULL,
-    is_default boolean NOT NULL,
+    is_default boolean NOT NULL DEFAULT false,
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
     deleted_at timestamp with time zone,
