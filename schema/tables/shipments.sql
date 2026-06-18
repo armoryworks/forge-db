@@ -6,7 +6,9 @@ CREATE TABLE public.shipments (
     shipping_address_id integer,
     status integer NOT NULL,
     carrier character varying(100),
+    carrier_id integer,
     tracking_number character varying(100),
+    scan_code character varying(120),
     shipped_date timestamp with time zone,
     delivered_date timestamp with time zone,
     shipping_cost numeric(18,4),
@@ -41,3 +43,6 @@ ALTER TABLE ONLY public.shipments
 
 ALTER TABLE ONLY public.shipments
     ADD CONSTRAINT fk_shipments_sales_orders_sales_order_id FOREIGN KEY (sales_order_id) REFERENCES public.sales_orders(id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY public.shipments
+    ADD CONSTRAINT fk_shipments_carriers_carrier_id FOREIGN KEY (carrier_id) REFERENCES public.carriers(id) ON DELETE SET NULL;
