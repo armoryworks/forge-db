@@ -1,0 +1,1 @@
+CREATE INDEX ix_regulatory_change_proposals_regulatory_source_id ON public.regulatory_change_proposals USING btree (regulatory_source_id);

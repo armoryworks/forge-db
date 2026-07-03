@@ -1,0 +1,1 @@
+CREATE INDEX ix_regulatory_change_proposals_target_event_type_id ON public.regulatory_change_proposals USING btree (target_event_type_id);
