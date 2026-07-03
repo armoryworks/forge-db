@@ -22,7 +22,6 @@ CREATE TABLE public.asp_net_users (
     mfa_enforced_by_policy boolean DEFAULT false NOT NULL,
     mfa_enabled_at timestamp with time zone,
     mfa_recovery_codes_remaining integer DEFAULT 0 NOT NULL,
-    role_template_id integer,
     user_name character varying(256),
     normalized_user_name character varying(256),
     email character varying(256),
@@ -53,6 +52,3 @@ ALTER TABLE ONLY public.asp_net_users
 
 ALTER TABLE ONLY public.asp_net_users
     ADD CONSTRAINT fk_asp_net_users_company_locations_work_location_id FOREIGN KEY (work_location_id) REFERENCES public.company_locations(id) ON DELETE SET NULL;
-
-ALTER TABLE ONLY public.asp_net_users
-    ADD CONSTRAINT fk_asp_net_users_role_templates_role_template_id FOREIGN KEY (role_template_id) REFERENCES public.role_templates(id) ON DELETE SET NULL;
