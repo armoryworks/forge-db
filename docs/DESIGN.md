@@ -248,6 +248,16 @@ schema apply:
 This is distinct from the `history/` audit archive (§4.1): `data/` is an *input* you author;
 `history/` is an *output* you never touch.
 
+> **Status: BUILT.** `DataSeedRunner` implements this for both `data/` and `seed/`: ordered by
+> zero-padded filename prefix (`data/` before `seed/`), applied-once via a ledger, each script in its
+> own transaction, wired into `apply` after the schema reconcile (and it still runs when the schema is
+> already in sync, so new seed scripts land). The ledger is `forge_db.data_migration_log` — a
+> harness-owned `forge_db` schema **excluded from the pg-schema-diff reconcile** (same mechanism as
+> `hangfire`), so it is neither desired-state you edit nor a source of EF-drift false positives. On
+> non-dev targets the data/seed phase inherits the schema gate (`--yes --backup-taken`). Authoring
+> convention: [data/README.md](../data/README.md). The directories are still empty — the forge-api
+> reference seeders have not been ported yet (that extraction is the next effort).
+
 ---
 
 ## 7. Decisions (settled)

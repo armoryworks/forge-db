@@ -14,6 +14,20 @@ public static class SchemaLayout
     public const string Functions = "schema/functions";
     public const string Triggers = "schema/triggers";
 
+    /// <summary>
+    /// Ordered, applied-once backfill scripts (docs/DESIGN §6.1) — the one change-based area.
+    /// Runs before <see cref="SeedDir"/> so a column added + backfilled precedes reference rows
+    /// that depend on it. Applied by <see cref="DataSeedRunner"/>, NOT by pg-schema-diff.
+    /// </summary>
+    public const string DataDir = "data";
+
+    /// <summary>
+    /// Schema-adjacent reference/lookup rows (reference_data groups the app assumes exist).
+    /// Applied like <see cref="DataDir"/> — ordered, applied-once, and idempotent-anyway — by
+    /// <see cref="DataSeedRunner"/>. Runs after <see cref="DataDir"/>.
+    /// </summary>
+    public const string SeedDir = "seed";
+
     /// <summary>EF Core bookkeeping table — owned by EF, never part of forge-db's desired state.</summary>
     public const string EfHistoryTable = "__EFMigrationsHistory";
 
