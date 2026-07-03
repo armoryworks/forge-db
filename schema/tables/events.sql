@@ -13,6 +13,16 @@ CREATE TABLE public.events (
     reminder_sent_at timestamp with time zone,
     is_all_day boolean DEFAULT false NOT NULL,
     is_system_generated boolean DEFAULT false NOT NULL,
+    status character varying(20),
+    owner_user_id integer,
+    completed_by_user_id integer,
+    completed_at timestamp with time zone,
+    waived_reason character varying(1000),
+    is_blocking boolean DEFAULT false NOT NULL,
+    acknowledged_by_user_id integer,
+    acknowledged_at timestamp with time zone,
+    evidence_document_set_id integer,
+    evidence_url character varying(1000),
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
     deleted_at timestamp with time zone,
@@ -33,3 +43,6 @@ ALTER TABLE ONLY public.events
 
 ALTER TABLE ONLY public.events
     ADD CONSTRAINT fk_events__calendar_event_types_event_type_id FOREIGN KEY (event_type_id) REFERENCES public.calendar_event_types(id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY public.events
+    ADD CONSTRAINT fk_events__document_sets_evidence_document_set_id FOREIGN KEY (evidence_document_set_id) REFERENCES public.document_sets(id) ON DELETE SET NULL;
