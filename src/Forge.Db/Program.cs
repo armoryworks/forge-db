@@ -124,7 +124,8 @@ static void PrintHelp()
               pg_extension/pg_proc/pg_trigger check. Exit non-zero on drift (for CI).
 
           forge-db apply   --db <url> [--env name] [--yes] [--backup-taken] [--allow-destructive]
-              Reconcile <db> to schema/ behind safety gates; captures the plan to history/.
+              Reconcile <db> to schema/ behind safety gates; captures the plan to history/. Then
+              runs any pending data/ + seed/ scripts once (applied-once ledger; DESIGN §6.1).
 
         --db is a Postgres connection string, e.g.
           postgres://postgres:pw@127.0.0.1:55432/forge?sslmode=disable

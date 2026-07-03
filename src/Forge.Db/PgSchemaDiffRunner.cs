@@ -19,12 +19,17 @@ public sealed partial class PgSchemaDiffRunner
     private readonly string _bin;
     private readonly string _desiredDir;
 
-    // Schemas owned by runtime components, not forge-db. Excluded from the diff so a
-    // reconcile never plans to drop them: Hangfire (Hangfire.PostgreSql) installs and
-    // migrates its own "hangfire" schema at app startup, entirely outside the desired
-    // state. Without this, a reconcile against a live DB plans DROP TABLE for every
-    // Hangfire table.
-    private static readonly string[] ExcludedSchemas = ["hangfire"];
+    // Schemas excluded from the diff so a reconcile never plans to drop them:
+    //  - "hangfire": Hangfire.PostgreSql installs and migrates its own schema at app startup,
+    //    entirely outside the desired state. Without this, a reconcile plans DROP TABLE for
+    //    every Hangfire table.
+    //  - "forge_db": the harness's OWN bookkeeping schema, holding data_migration_log (the
+    //    applied-once ledger for data/ + seed/ scripts — DESIGN §6.1). It is created by
+    //    DataSeedRunner, not authored in schema/, so it must never appear in the desired-state
+    //    diff (that would plan a DROP against a live DB and would pollute the EF drift-check,
+    //    which knows nothing about it). Same treatment as hangfire, and analogous to why
+    //    __EFMigrationsHistory is kept out of the diff.
+    private static readonly string[] ExcludedSchemas = ["hangfire", "forge_db"];
 
     private static IEnumerable<string> ExcludeArgs() =>
         ExcludedSchemas.SelectMany(s => new[] { "--exclude-schema", s });

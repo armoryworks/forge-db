@@ -24,36 +24,61 @@ public static class ApplyCommand
             Console.Error.WriteLine((plan.StdErr + plan.StdOut).Trim());
             return 1;
         }
+
+        // ── 1. Schema reconcile (skipped when already in sync — but the data/seed phase still runs) ──
         if (PgSchemaDiffRunner.IsInSync(plan.StdOut))
         {
-            Console.WriteLine("[apply] no changes — target already in sync. Nothing to do.");
-            return 0;
+            Console.WriteLine("[apply] no schema changes — target already in sync.");
+        }
+        else
+        {
+            var planSql = plan.StdOut;
+            var hazards = PgSchemaDiffRunner.Hazards(planSql);
+
+            var gate = DeployGates.Evaluate(planSql, isDev, yes, backupTaken, allowDestructive);
+            if (!gate.Allowed)
+            {
+                Console.Error.WriteLine($"[apply] BLOCKED: {gate.Reason}");
+                return 3;
+            }
+            Console.WriteLine($"[apply] gates: {gate.Reason}");
+            if (hazards.Count > 0) Console.WriteLine($"[apply] allowing hazards: {string.Join(", ", hazards)}");
+
+            var historyPath = CapturePlan(repoRoot, env, planSql);
+            Console.WriteLine($"[apply] captured plan → {Path.GetRelativePath(repoRoot, historyPath)} (audit-only, never replayed)");
+
+            var result = runner.Apply(dbUrl, hazards);
+            Console.Write(result.StdOut);
+            if (!result.Ok)
+            {
+                Console.Error.WriteLine("[apply] pg-schema-diff apply FAILED:");
+                Console.Error.WriteLine(result.StdErr.Trim());
+                return 1;
+            }
+            Console.WriteLine($"[apply] schema applied to env '{env}'.");
         }
 
-        var planSql = plan.StdOut;
-        var hazards = PgSchemaDiffRunner.Hazards(planSql);
-
-        var gate = DeployGates.Evaluate(planSql, isDev, yes, backupTaken, allowDestructive);
-        if (!gate.Allowed)
+        // ── 2. Data/seed reconcile (DESIGN §6.1): ordered, applied-once backfills + reference rows ──
+        // Runs regardless of schema in-sync, since new data/ or seed/ scripts may be pending. Data
+        // mutations on a non-dev target require the same confirm+backup posture as a schema apply.
+        DataSeedRunner.Result seed;
+        try
         {
-            Console.Error.WriteLine($"[apply] BLOCKED: {gate.Reason}");
-            return 3;
+            seed = DataSeedRunner.Apply(repoRoot, DbUrl.ToNpgsql(dbUrl), allowMutation: isDev || (yes && backupTaken));
         }
-        Console.WriteLine($"[apply] gates: {gate.Reason}");
-        if (hazards.Count > 0) Console.WriteLine($"[apply] allowing hazards: {string.Join(", ", hazards)}");
-
-        var historyPath = CapturePlan(repoRoot, env, planSql);
-        Console.WriteLine($"[apply] captured plan → {Path.GetRelativePath(repoRoot, historyPath)} (audit-only, never replayed)");
-
-        var result = runner.Apply(dbUrl, hazards);
-        Console.Write(result.StdOut);
-        if (!result.Ok)
+        catch (Exception ex)
         {
-            Console.Error.WriteLine("[apply] pg-schema-diff apply FAILED:");
-            Console.Error.WriteLine(result.StdErr.Trim());
+            Console.Error.WriteLine($"[apply] data/seed phase FAILED (schema changes, if any, were applied): {ex.Message}");
             return 1;
         }
-        Console.WriteLine($"[apply] applied to env '{env}'.");
+        if (seed.Blocked)
+        {
+            Console.Error.WriteLine($"[apply] BLOCKED: {seed.BlockedReason}");
+            return 3;
+        }
+        if (seed.Total > 0)
+            Console.WriteLine($"[apply] data/seed: {seed.Applied} applied, {seed.AlreadyApplied} already present ({seed.Total} total).");
+
         return 0;
     }
 
