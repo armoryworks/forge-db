@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX ix_calendar_super_group_role_visibilities_group_role ON public.calendar_super_group_role_visibilities USING btree (super_group_id, role);
