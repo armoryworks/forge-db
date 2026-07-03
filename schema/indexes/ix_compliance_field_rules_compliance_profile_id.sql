@@ -1,0 +1,1 @@
+CREATE INDEX ix_compliance_field_rules_compliance_profile_id ON public.compliance_field_rules USING btree (compliance_profile_id);
