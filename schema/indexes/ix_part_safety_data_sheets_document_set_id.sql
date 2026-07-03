@@ -1,0 +1,1 @@
+CREATE INDEX ix_part_safety_data_sheets_document_set_id ON public.part_safety_data_sheets USING btree (document_set_id);
