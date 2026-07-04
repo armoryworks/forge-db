@@ -10,3 +10,6 @@ obj/
 # Editor
 .vs/
 .idea/
+
+# apply receipts are local OUTPUT (beta: no prod audit trail — revisit when in prod)
+history/*.sql
