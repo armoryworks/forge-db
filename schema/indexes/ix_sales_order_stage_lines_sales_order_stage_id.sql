@@ -1,0 +1,1 @@
+CREATE INDEX ix_sales_order_stage_lines_sales_order_stage_id ON public.sales_order_stage_lines USING btree (sales_order_stage_id);

@@ -16,6 +16,7 @@ CREATE TABLE public.quotes (
     accepted_date timestamp with time zone,
     tax_rate numeric(8,6) NOT NULL,
     customer_po character varying(50),
+    tax_document_id integer,
     source_estimate_id integer,
     converted_at timestamp with time zone,
     external_id character varying(100),
@@ -50,3 +51,6 @@ ALTER TABLE ONLY public.quotes
 
 ALTER TABLE ONLY public.quotes
     ADD CONSTRAINT fk_quotes_quotes_source_estimate_id FOREIGN KEY (source_estimate_id) REFERENCES public.quotes(id) ON DELETE SET NULL;
+
+ALTER TABLE ONLY public.quotes
+    ADD CONSTRAINT fk_quotes_customer_tax_documents_tax_document_id FOREIGN KEY (tax_document_id) REFERENCES public.customer_tax_documents(id) ON DELETE SET NULL;

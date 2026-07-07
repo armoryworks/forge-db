@@ -25,6 +25,9 @@ CREATE TABLE public.purchase_orders (
     quote_currency character varying(3) DEFAULT 'USD'::character varying NOT NULL,
     fx_rate numeric(18,8),
     fx_rate_source character varying(200),
+    origin_source character varying(30) DEFAULT 'Manual'::character varying NOT NULL,
+    origin_user_id integer,
+    origin_reference character varying(200),
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
     deleted_at timestamp with time zone,
@@ -48,3 +51,6 @@ ALTER TABLE ONLY public.purchase_orders
 
 ALTER TABLE ONLY public.purchase_orders
     ADD CONSTRAINT fk_purchase_orders_jobs_job_id FOREIGN KEY (job_id) REFERENCES public.jobs(id) ON DELETE SET NULL;
+
+ALTER TABLE ONLY public.purchase_orders
+    ADD CONSTRAINT fk_purchase_orders__asp_net_users_origin_user_id FOREIGN KEY (origin_user_id) REFERENCES public.asp_net_users(id) ON DELETE SET NULL;

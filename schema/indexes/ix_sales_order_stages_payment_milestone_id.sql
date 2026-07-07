@@ -1,0 +1,1 @@
+CREATE INDEX ix_sales_order_stages_payment_milestone_id ON public.sales_order_stages USING btree (payment_milestone_id);

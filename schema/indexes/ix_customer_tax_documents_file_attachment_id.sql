@@ -1,0 +1,1 @@
+CREATE INDEX ix_customer_tax_documents_file_attachment_id ON public.customer_tax_documents USING btree (file_attachment_id);

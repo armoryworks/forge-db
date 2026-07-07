@@ -9,6 +9,7 @@ CREATE TABLE public.lot_records (
     expiration_date timestamp with time zone,
     supplier_lot_number character varying(100),
     notes character varying(2000),
+    sales_order_stage_id integer,
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
     deleted_at timestamp with time zone,
@@ -38,3 +39,6 @@ ALTER TABLE ONLY public.lot_records
 
 ALTER TABLE ONLY public.lot_records
     ADD CONSTRAINT fk_lot_records_jobs_job_id FOREIGN KEY (job_id) REFERENCES public.jobs(id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY public.lot_records
+    ADD CONSTRAINT fk_lot_records_sales_order_stages_sales_order_stage_id FOREIGN KEY (sales_order_stage_id) REFERENCES public.sales_order_stages(id) ON DELETE SET NULL;

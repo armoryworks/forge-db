@@ -1,0 +1,1 @@
+CREATE INDEX ix_payment_milestones_payment_schedule_id ON public.payment_milestones USING btree (payment_schedule_id);
