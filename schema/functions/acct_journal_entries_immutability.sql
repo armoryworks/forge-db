@@ -2,6 +2,16 @@ CREATE FUNCTION public.acct_journal_entries_immutability() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 BEGIN
+    -- §5A.4 training sandbox (decision D2, 2026-07-07): the TRAINING book is resettable.
+    -- DELETEs are exempt from immutability for that one book (matched by code, so no real
+    -- book can ever qualify) — reset = wipe + reseed. UPDATEs are NOT exempt: sandbox
+    -- entries stay append-only while in use, which is itself the lesson.
+    IF (TG_OP = 'DELETE') AND EXISTS (
+        SELECT 1 FROM public.acct_books b WHERE b.id = OLD.book_id AND b.code = 'TRAINING'
+    ) THEN
+        RETURN OLD;
+    END IF;
+
     IF (TG_OP = 'DELETE') THEN
         IF OLD.status IN ('Posted', 'Reversed') THEN
             RAISE EXCEPTION
