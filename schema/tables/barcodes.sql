@@ -10,6 +10,7 @@ CREATE TABLE public.barcodes (
     purchase_order_id integer,
     asset_id integer,
     storage_location_id integer,
+    lot_record_id integer,
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
     deleted_at timestamp with time zone,
@@ -48,3 +49,6 @@ ALTER TABLE ONLY public.barcodes
 
 ALTER TABLE ONLY public.barcodes
     ADD CONSTRAINT fk_barcodes_assets_asset_id FOREIGN KEY (asset_id) REFERENCES public.assets(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY public.barcodes
+    ADD CONSTRAINT fk_barcodes__lot_records_lot_record_id FOREIGN KEY (lot_record_id) REFERENCES public.lot_records(id) ON DELETE CASCADE;
