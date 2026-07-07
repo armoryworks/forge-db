@@ -15,6 +15,7 @@ CREATE TABLE public.quotes (
     sent_date timestamp with time zone,
     accepted_date timestamp with time zone,
     tax_rate numeric(8,6) NOT NULL,
+    customer_po character varying(50),
     source_estimate_id integer,
     converted_at timestamp with time zone,
     external_id character varying(100),

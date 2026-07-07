@@ -10,6 +10,7 @@ CREATE TABLE public.customer_addresses (
     postal_code character varying(20) NOT NULL,
     country character varying(10) NOT NULL,
     is_default boolean NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
     deleted_at timestamp with time zone,

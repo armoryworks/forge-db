@@ -16,6 +16,8 @@ CREATE TABLE public.sales_orders (
     external_id character varying(100),
     external_ref character varying(100),
     provider character varying(50),
+    parent_sales_order_id integer,
+    addendum_number integer,
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
     deleted_at timestamp with time zone,
@@ -45,3 +47,6 @@ ALTER TABLE ONLY public.sales_orders
 
 ALTER TABLE ONLY public.sales_orders
     ADD CONSTRAINT fk_sales_orders_quotes_quote_id FOREIGN KEY (quote_id) REFERENCES public.quotes(id) ON DELETE SET NULL;
+
+ALTER TABLE ONLY public.sales_orders
+    ADD CONSTRAINT fk_sales_orders_sales_orders_parent_sales_order_id FOREIGN KEY (parent_sales_order_id) REFERENCES public.sales_orders(id) ON DELETE RESTRICT;
