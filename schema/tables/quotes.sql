@@ -14,6 +14,9 @@ CREATE TABLE public.quotes (
     shipping_address_id integer,
     sent_date timestamp with time zone,
     accepted_date timestamp with time zone,
+    -- Set only when a customer accepted via the portal (RespondToQuote), never by a staff accept.
+    -- Lets quote→order conversion auto-satisfy the SO acceptance gate as genuine customer proof.
+    accepted_by_contact_id integer,
     tax_rate numeric(8,6) NOT NULL,
     customer_po character varying(50),
     tax_document_id integer,
@@ -54,3 +57,6 @@ ALTER TABLE ONLY public.quotes
 
 ALTER TABLE ONLY public.quotes
     ADD CONSTRAINT fk_quotes_customer_tax_documents_tax_document_id FOREIGN KEY (tax_document_id) REFERENCES public.customer_tax_documents(id) ON DELETE SET NULL;
+
+ALTER TABLE ONLY public.quotes
+    ADD CONSTRAINT fk_quotes_contacts_accepted_by_contact_id FOREIGN KEY (accepted_by_contact_id) REFERENCES public.contacts(id) ON DELETE SET NULL;
