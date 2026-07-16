@@ -10,6 +10,8 @@ CREATE TABLE public.sales_orders (
     credit_terms integer,
     confirmed_date timestamp with time zone,
     requested_delivery_date timestamp with time zone,
+    cancellation_fee_amount numeric(18,2),
+    cancellation_fee_reason text,
     customer_po character varying(50),
     notes character varying(2000),
     tax_rate numeric(8,6) NOT NULL,
