@@ -3,6 +3,8 @@ CREATE TABLE public.barcodes (
     value character varying(500) NOT NULL,
     entity_type character varying(50) NOT NULL,
     is_active boolean NOT NULL,
+    -- 'Internal' (self-generated, unique within this install) | 'Gs1' (licensed GTIN, globally unique).
+    identity_type character varying(20) DEFAULT 'Internal'::character varying NOT NULL,
     user_id integer,
     part_id integer,
     job_id integer,

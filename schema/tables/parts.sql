@@ -57,6 +57,8 @@ CREATE TABLE public.parts (
     manual_cost_override numeric(18,4),
     current_cost_calculation_id integer,
     current_bom_revision_id integer,
+    -- Licensed GS1 GTIN for this trade item (globally unique). NULL = internal identity only.
+    gtin character varying(14),
     is_license boolean DEFAULT false NOT NULL,
     license_expires_at timestamp with time zone,
     license_renewal_lead_days integer,
