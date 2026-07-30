@@ -71,3 +71,19 @@ dotnet test tests/Forge.Db.Tests
 
 CI runs that same `verify` against the EF model via forge-api's `schema-drift-check` workflow.
 
+
+## Deploying Forge
+
+This repository is a component of the **[Forge](https://github.com/armoryworks/forge)** platform. To deploy or update the full Forge application, use the self-contained **[`@armoryworks/forge-deploy`](https://github.com/armoryworks/forge-deploy)** CLI:
+
+```bash
+# Ubuntu: Node.js 22 + the deploy CLI
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - && sudo apt-get install -y nodejs
+sudo npm install -g @armoryworks/forge-deploy
+
+# deploy or update an install (point at your install directory)
+sudo npm update -g @armoryworks/forge-deploy   # refresh to the latest bundled deploy config
+forge-deploy /opt/forge                        # unpack + run setup; pulls images from GHCR
+```
+
+Re-running preserves your `.env`, compose overrides, and data volumes. See the **[forge-deploy README](https://github.com/armoryworks/forge-deploy#readme)** for full deploy, topology, and troubleshooting docs.
