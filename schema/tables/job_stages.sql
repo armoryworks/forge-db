@@ -8,6 +8,7 @@ CREATE TABLE public.job_stages (
     wiplimit integer,
     accounting_document_type integer,
     is_irreversible boolean NOT NULL,
+    is_mandatory boolean DEFAULT false NOT NULL,
     is_shop_floor boolean NOT NULL,
     is_active boolean NOT NULL,
     created_at timestamp with time zone NOT NULL,
