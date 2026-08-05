@@ -69,6 +69,21 @@ dotnet run --project src/Forge.Db -- verify --db "postgres://user:pw@host:5432/d
 dotnet test tests/Forge.Db.Tests
 ```
 
+### Turn-key apply (`tools/apply-schema.sh`)
+
+For the common "reconcile the running stack's DB to `schema/`" case there is a wrapper that
+resolves the DB URL from the forge-deploy compose conventions (`../forge-deploy/.env`, falling back
+to `postgres/postgres@localhost:5432/forge`), checks the diff engine is installed, always shows the
+plan first, applies through the harness's `DeployGates` (dev targets auto-confirm; non-dev requires
+`--yes --backup-taken`, destructive plans always require `--allow-destructive`), and finishes with a
+`verify` round-trip:
+
+```bash
+tools/apply-schema.sh                 # plan → apply → verify against the local stack
+tools/apply-schema.sh --plan-only     # look, don't touch
+tools/apply-schema.sh --env prod --yes --backup-taken   # gated non-dev apply
+```
+
 CI runs that same `verify` against the EF model via forge-api's `schema-drift-check` workflow.
 
 
