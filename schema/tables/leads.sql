@@ -26,6 +26,7 @@ CREATE TABLE public.leads (
     export_control character varying(40) DEFAULT ''::character varying NOT NULL,
     secondary_owner_user_id integer,
     part_class_code character varying(100),
+    external_id character varying(100),
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
     deleted_at timestamp with time zone,
