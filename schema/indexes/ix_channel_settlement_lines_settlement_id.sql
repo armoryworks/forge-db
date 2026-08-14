@@ -1,0 +1,1 @@
+CREATE INDEX ix_channel_settlement_lines_settlement_id ON public.channel_settlement_lines USING btree (settlement_id);

@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX ix_channel_settlements_channel_id_external_settlement_id ON public.channel_settlements USING btree (channel_id, external_settlement_id);

@@ -20,6 +20,10 @@ CREATE TABLE public.sales_orders (
     provider character varying(50),
     parent_sales_order_id integer,
     addendum_number integer,
+    channel_id integer,
+    retail_buyer_id integer,
+    tax_collected_by character varying(20) DEFAULT 'Seller'::character varying NOT NULL,
+    external_order_number character varying(100),
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
     deleted_at timestamp with time zone,
@@ -52,3 +56,9 @@ ALTER TABLE ONLY public.sales_orders
 
 ALTER TABLE ONLY public.sales_orders
     ADD CONSTRAINT fk_sales_orders_sales_orders_parent_sales_order_id FOREIGN KEY (parent_sales_order_id) REFERENCES public.sales_orders(id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY public.sales_orders
+    ADD CONSTRAINT fk_sales_orders_retail_buyers_retail_buyer_id FOREIGN KEY (retail_buyer_id) REFERENCES public.retail_buyers(id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY public.sales_orders
+    ADD CONSTRAINT fk_sales_orders_sales_channels_channel_id FOREIGN KEY (channel_id) REFERENCES public.sales_channels(id) ON DELETE RESTRICT;

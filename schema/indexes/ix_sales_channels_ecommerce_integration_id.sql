@@ -1,0 +1,1 @@
+CREATE INDEX ix_sales_channels_ecommerce_integration_id ON public.sales_channels USING btree (ecommerce_integration_id);
