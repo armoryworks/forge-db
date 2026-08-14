@@ -2,7 +2,8 @@ CREATE TABLE public.customer_returns (
     id integer NOT NULL,
     return_number character varying(50) NOT NULL,
     customer_id integer NOT NULL,
-    original_job_id integer NOT NULL,
+    original_job_id integer,
+    sales_order_line_id integer,
     rework_job_id integer,
     reason character varying(1000) NOT NULL,
     notes character varying(2000),
@@ -11,6 +12,10 @@ CREATE TABLE public.customer_returns (
     inspected_by_id integer,
     inspected_at timestamp with time zone,
     inspection_notes character varying(2000),
+    channel_id integer,
+    external_rma_id character varying(200),
+    refund_amount numeric(18,2),
+    quantity numeric(18,4),
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
     deleted_at timestamp with time zone,
@@ -37,3 +42,9 @@ ALTER TABLE ONLY public.customer_returns
 
 ALTER TABLE ONLY public.customer_returns
     ADD CONSTRAINT fk_customer_returns_customers_customer_id FOREIGN KEY (customer_id) REFERENCES public.customers(id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY public.customer_returns
+    ADD CONSTRAINT fk_customer_returns__sales_channels_channel_id FOREIGN KEY (channel_id) REFERENCES public.sales_channels(id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY public.customer_returns
+    ADD CONSTRAINT fk_customer_returns__sales_order_lines_sales_order_line_id FOREIGN KEY (sales_order_line_id) REFERENCES public.sales_order_lines(id) ON DELETE RESTRICT;

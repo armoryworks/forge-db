@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX ix_customer_returns_channel_id_external_rma_id ON public.customer_returns USING btree (channel_id, external_rma_id) WHERE ((channel_id IS NOT NULL) AND (external_rma_id IS NOT NULL) AND (deleted_at IS NULL));
