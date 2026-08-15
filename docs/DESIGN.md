@@ -258,6 +258,51 @@ This is distinct from the `history/` audit archive (§4.1): `data/` is an *input
 > convention: [data/README.md](../data/README.md). The directories are still empty — the forge-api
 > reference seeders have not been ported yet (that extraction is the next effort).
 
+### 6.2 Data dump & clean-rebuild import
+
+Sometimes the right fix for an aging install isn't another migration — it's a **clean rebuild**:
+dump the data, provision a fresh database from `schema/`, and load the data back *minus the
+garbage*. The harness makes that a first-class, repeatable workflow instead of a pile of ad-hoc
+`pg_dump`/`psql` invocations:
+
+```bash
+forge-db dump   --db postgres://…/old --out ./dump                       # 1. data out (read-only)
+createdb forge_clean && forge-db apply --db postgres://…/forge_clean     # 2. fresh desired-state DB
+forge-db import --db postgres://…/forge_clean --from ./dump \
+                --exclude 'audit_*,*_log'                                # 3. data back, minus garbage
+```
+
+- **`dump`** streams every application table as `COPY … TO STDOUT` **text** (one file per table +
+  `manifest.json`: columns, row counts, checksums, and a fingerprint of the assembled desired
+  state). Text over binary deliberately: stable across PG versions, diffable, and — because the
+  manifest records the column list — import loads the **intersection** of dumped and current
+  columns, tolerating modest schema evolution between dump and import (dropped columns fall away,
+  new columns take their defaults). The `hangfire`/`forge_db` schemas and `__EFMigrationsHistory`
+  are excluded, mirroring the reconcile exclusions — infrastructure re-creates itself.
+- **`import`** is the garbage filter, applied at three layers, in order:
+  1. **`--exclude` globs** — whole tables that don't come along (event logs, dead features);
+  2. **`scrub/` scripts** — version-controlled cleanup SQL run after the load, *every* import (NOT
+     applied-once — the one deliberate divergence from `data/`/`seed/`; see
+     [scrub/README.md](../scrub/README.md)): soft-deleted rows, expired tokens, orphaned blobs;
+  3. **FK validation** — the load runs with FK triggers suspended
+     (`session_replication_role = replica`, hence the superuser requirement), so a final pass
+     re-checks every FK and **fails the import (exit 4) on orphans** unless `--allow-fk-orphans`.
+     Orphans are precisely the garbage this workflow exists to surface, not a nuisance to paper
+     over.
+
+  The load itself is one transaction (`TRUNCATE … RESTART IDENTITY CASCADE` over the selected
+  tables, then per-table `COPY … FROM STDIN`), so a failure leaves the target as `apply` provisioned
+  it. Afterwards: serial/identity sequences are bumped past `max(id)`, `ANALYZE` refreshes stats,
+  and a JSON receipt lands in `history/` beside apply's plan captures (audit-only, never replayed).
+  Import truncates, so non-dev targets sit behind the same `--yes --backup-taken` posture as a
+  schema apply.
+
+> **Status: BUILT.** `DataDumper`/`DataImporter` + the `dump`/`import` verbs, covered by unit tests
+> (glob semantics, COPY-text row projection, manifest round-trip) and a DB round-trip integration
+> test (dump → import with an exclusion + scrub → row counts, sequence continuation, orphan
+> detection) that runs in CI against the release workflow's Postgres service. `scrub/` is empty
+> until the first garbage rule is authored.
+
 ---
 
 ## 7. Decisions (settled)

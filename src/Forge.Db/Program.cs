@@ -8,7 +8,8 @@ if (args.Length == 0)
 }
 
 var verb = args[0];
-var boolFlags = new HashSet<string>(StringComparer.Ordinal) { "yes", "backup-taken", "allow-destructive" };
+var boolFlags = new HashSet<string>(StringComparer.Ordinal)
+    { "yes", "backup-taken", "allow-destructive", "skip-scrub", "allow-fk-orphans" };
 var opts = ParseFlags(args.Skip(1), boolFlags);
 
 var repoRoot = ResolveRepoRoot(opts.GetValueOrDefault("repo"));
@@ -38,6 +39,16 @@ try
             return ApplyCommand.Run(repoRoot, Required("db"),
                 opts.GetValueOrDefault("env", "dev"),
                 opts.ContainsKey("yes"), opts.ContainsKey("backup-taken"), opts.ContainsKey("allow-destructive"));
+
+        case "dump":
+            return DumpCommand.Run(repoRoot, Required("db"), Required("out"));
+
+        case "import":
+            return ImportCommand.Run(repoRoot, Required("db"), Required("from"),
+                opts.GetValueOrDefault("env", "dev"),
+                opts.ContainsKey("yes"), opts.ContainsKey("backup-taken"),
+                opts.GetValueOrDefault("exclude"),
+                opts.ContainsKey("skip-scrub"), opts.ContainsKey("allow-fk-orphans"));
 
         case "version":
         {
@@ -126,6 +137,17 @@ static void PrintHelp()
           forge-db apply   --db <url> [--env name] [--yes] [--backup-taken] [--allow-destructive]
               Reconcile <db> to schema/ behind safety gates; captures the plan to history/. Then
               runs any pending data/ + seed/ scripts once (applied-once ledger; DESIGN §6.1).
+
+          forge-db dump    --db <url> --out <dir>
+              Stream every application table's data to <dir> (COPY text, one file per table, plus
+              manifest.json). Read-only against the source. Excludes hangfire/forge_db/EF history.
+
+          forge-db import  --db <url> --from <dir> [--env name] [--yes] [--backup-taken]
+                           [--exclude glob,glob] [--skip-scrub] [--allow-fk-orphans]
+              Load a dump into a freshly provisioned DB (clean-rebuild, DESIGN §6.2): truncate the
+              selected tables, COPY the dump back minus --exclude'd tables, fix sequences, run the
+              scrub/ cleanup scripts, then validate every FK — orphans fail the import (exit 4)
+              unless --allow-fk-orphans. Needs a superuser --db (FK triggers are suspended to load).
 
         --db is a Postgres connection string, e.g.
           postgres://postgres:pw@127.0.0.1:55432/forge?sslmode=disable

@@ -28,6 +28,14 @@ public static class SchemaLayout
     /// </summary>
     public const string SeedDir = "seed";
 
+    /// <summary>
+    /// Version-controlled cleanup SQL for the clean-rebuild workflow (docs/DESIGN §6.2). Run by
+    /// <c>import</c> after the data load — every import, NOT applied-once (unlike
+    /// <see cref="DataDir"/>/<see cref="SeedDir"/>), so scripts must be idempotent by authoring.
+    /// This is where "garbage" is defined: purge soft-deleted rows, expired tokens, orphans.
+    /// </summary>
+    public const string ScrubDir = "scrub";
+
     /// <summary>EF Core bookkeeping table — owned by EF, never part of forge-db's desired state.</summary>
     public const string EfHistoryTable = "__EFMigrationsHistory";
 

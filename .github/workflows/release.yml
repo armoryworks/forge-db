@@ -15,7 +15,9 @@ on:
       - 'schema/**'
       - 'data/**'
       - 'seed/**'
+      - 'scrub/**'
       - 'src/**'
+      - 'tests/**'
       - 'Dockerfile'
       - '.dockerignore'
       - '.github/workflows/release.yml'
@@ -29,9 +31,35 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 3s
+          --health-timeout 3s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Run tests (unit + DB integration)
+        env:
+          # Superuser DSN — the dump/import round trip suspends FK triggers.
+          FORGE_DB_TEST_DSN: postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable
+        run: dotnet test tests/Forge.Db.Tests --nologo
+
   build-push:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    needs: test
     steps:
       - uses: actions/checkout@v4
 

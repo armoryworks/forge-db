@@ -66,6 +66,10 @@ dotnet run --project src/Forge.Db -- plan   --db "postgres://user:pw@host:5432/d
 # assert a DB matches schema/ — exit non-zero on drift (this is what CI runs)
 dotnet run --project src/Forge.Db -- verify --db "postgres://user:pw@host:5432/db?sslmode=disable"
 
+# clean rebuild (docs/DESIGN.md §6.2): dump data out, provision fresh, import back minus garbage
+dotnet run --project src/Forge.Db -- dump   --db "postgres://…/old" --out ./dump
+dotnet run --project src/Forge.Db -- import --db "postgres://…/fresh" --from ./dump --exclude 'audit_*,*_log'
+
 dotnet test tests/Forge.Db.Tests
 ```
 
