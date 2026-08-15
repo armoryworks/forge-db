@@ -88,13 +88,16 @@ public class DataDumpDbTests
             Exec(target, "INSERT INTO parents (name) VALUES ('after-import')");
             Assert.Equal(2L, ScalarLong(target, "SELECT count(*) FROM parents"));
 
-            // ── orphan detection: excluding the parent table strands the children ────────────────
+            // ── orphan detection: excluding the parent table strands children ────────────────────
+            // Excluded tables keep their CURRENT target content (they are not truncated), so the
+            // dumped child of parent 1 still finds its parent from the first import; only the child
+            // of the never-reimported parent 2 is orphaned.
             var orphaned = DataImporter.Run(repoRoot, targetUrl, dumpDir,
                 excludePatterns: ["parents", "junk_*"], skipScrub: true);
             var violation = Assert.Single(orphaned.Orphans);
             Assert.Equal("public.children", violation.ChildTable);
             Assert.Equal("public.parents", violation.ParentTable);
-            Assert.Equal(2L, violation.Rows);
+            Assert.Equal(1L, violation.Rows);
         }
         finally
         {
