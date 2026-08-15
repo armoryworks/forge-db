@@ -297,6 +297,15 @@ forge-db import --db postgres://…/forge_clean --from ./dump \
   Import truncates, so non-dev targets sit behind the same `--yes --backup-taken` posture as a
   schema apply.
 
+**In-app equivalent (forge-api/forge-ui).** The same workflow is exposed to admins at
+**Admin → Database Transfer** (`/admin/database`, `Admin` role): Export downloads the dump as a
+**zip of this exact directory layout**, and Import loads such a zip back with the same three
+garbage layers — exclude globs, a soft-deleted purge (the app-level `deleted_at` notion of garbage,
+standing in for `scrub/`), and the FK-orphan report. Archives are interchangeable in both
+directions: unzip a UI export and `forge-db import --from` it, or zip a CLI dump and upload it.
+The CLI remains the path for a *cross-database* rebuild (dump old → `apply` a fresh DB → import),
+since the in-app import necessarily targets the install it runs in.
+
 > **Status: BUILT.** `DataDumper`/`DataImporter` + the `dump`/`import` verbs, covered by unit tests
 > (glob semantics, COPY-text row projection, manifest round-trip) and a DB round-trip integration
 > test (dump → import with an exclusion + scrub → row counts, sequence continuation, orphan
