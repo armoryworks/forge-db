@@ -45,6 +45,19 @@ public static class ApplyCommand
         if (pre.Applied > 0)
             Console.WriteLine($"[apply] pre-migrate: {pre.Applied} script(s) applied, {pre.AlreadyApplied} already done.");
 
+        // Phase 0 is committed and cannot be undone by a later abort — each script ran in its own
+        // transaction. A pre-migrate script is also, by nature, the kind of change the OLD app
+        // cannot survive (a rename is exactly that), so "we stopped before the app swap" is not the
+        // reassurance it usually is. Say so on every path out that isn't success.
+        void WarnPreMigrateCommitted()
+        {
+            if (pre.Applied == 0) return;
+            Console.Error.WriteLine(
+                $"[apply] NOTE: {pre.Applied} pre-migrate script(s) were already applied and COMMITTED before "
+                + "this failure. The database has moved; the previous application version may not run "
+                + "against it. Resolve and re-run apply (pre-migrate will not repeat), or restore the backup.");
+        }
+
         var runner = new PgSchemaDiffRunner(DesiredStateAssembler.WriteTempDir(repoRoot));
 
         var plan = runner.Plan(dbUrl);
@@ -52,6 +65,7 @@ public static class ApplyCommand
         {
             Console.Error.WriteLine("[apply] could not compute plan:");
             Console.Error.WriteLine((plan.StdErr + plan.StdOut).Trim());
+            WarnPreMigrateCommitted();
             return 1;
         }
 
@@ -69,6 +83,7 @@ public static class ApplyCommand
             if (!gate.Allowed)
             {
                 Console.Error.WriteLine($"[apply] BLOCKED: {gate.Reason}");
+                WarnPreMigrateCommitted();
                 return 3;
             }
             Console.WriteLine($"[apply] gates: {gate.Reason}");
@@ -83,6 +98,7 @@ public static class ApplyCommand
             {
                 Console.Error.WriteLine("[apply] pg-schema-diff apply FAILED:");
                 Console.Error.WriteLine(result.StdErr.Trim());
+                WarnPreMigrateCommitted();
                 return 1;
             }
             Console.WriteLine($"[apply] schema applied to env '{env}'.");
@@ -99,11 +115,13 @@ public static class ApplyCommand
         catch (Exception ex)
         {
             Console.Error.WriteLine($"[apply] data/seed phase FAILED (schema changes, if any, were applied): {ex.Message}");
+            WarnPreMigrateCommitted();
             return 1;
         }
         if (seed.Blocked)
         {
             Console.Error.WriteLine($"[apply] BLOCKED: {seed.BlockedReason}");
+            WarnPreMigrateCommitted();
             return 3;
         }
         if (seed.Total > 0)

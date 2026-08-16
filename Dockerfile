@@ -29,13 +29,20 @@ ENV PG_SCHEMA_DIFF_BIN=/usr/local/bin/pg-schema-diff
 # The CLI.
 COPY --from=build /app /app
 
-# The desired-state schema tree (plus data/seed/history). The CLI resolves the
-# repo root by walking up from the working directory for schema/, so WORKDIR is
-# the baked-in root and callers only need `--db <url>`.
+# The desired-state schema tree (plus premigrate/data/seed/history). The CLI
+# resolves the repo root by walking up from the working directory for schema/, so
+# WORKDIR is the baked-in root and callers only need `--db <url>`.
+#
+# premigrate/ is NOT optional here. A missing directory is a silent no-op in the
+# runner (Discover yields nothing), so omitting it would ship an image that skips
+# phase 0 and lets the reconcile plan DROP + CREATE over a rename — the exact
+# data loss that phase exists to prevent, with no error to notice.
 WORKDIR /forge-db
 COPY schema/ /forge-db/schema/
+COPY premigrate/ /forge-db/premigrate/
 COPY data/ /forge-db/data/
 COPY seed/ /forge-db/seed/
+COPY scrub/ /forge-db/scrub/
 COPY history/ /forge-db/history/
 
 ENTRYPOINT ["dotnet", "/app/forge-db.dll"]
