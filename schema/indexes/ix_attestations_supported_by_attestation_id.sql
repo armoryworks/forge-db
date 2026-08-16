@@ -1,0 +1,1 @@
+CREATE INDEX ix_attestations_supported_by_attestation_id ON public.attestations USING btree (supported_by_attestation_id);

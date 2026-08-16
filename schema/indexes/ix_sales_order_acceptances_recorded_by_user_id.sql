@@ -1,1 +1,0 @@
-CREATE INDEX ix_sales_order_acceptances_recorded_by_user_id ON public.sales_order_acceptances USING btree (recorded_by_user_id);

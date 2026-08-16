@@ -1,1 +1,0 @@
-CREATE INDEX ix_sales_order_acceptances_accepted_by_contact_id ON public.sales_order_acceptances USING btree (accepted_by_contact_id);

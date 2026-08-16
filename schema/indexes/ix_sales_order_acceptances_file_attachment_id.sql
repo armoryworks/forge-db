@@ -1,1 +1,0 @@
-CREATE INDEX ix_sales_order_acceptances_file_attachment_id ON public.sales_order_acceptances USING btree (file_attachment_id);

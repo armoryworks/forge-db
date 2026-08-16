@@ -24,6 +24,7 @@ CREATE TABLE public.sales_orders (
     retail_buyer_id integer,
     tax_collected_by character varying(20) DEFAULT 'Seller'::character varying NOT NULL,
     external_order_number character varying(100),
+    authorizing_attestation_id integer,
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
     deleted_at timestamp with time zone,
@@ -62,3 +63,6 @@ ALTER TABLE ONLY public.sales_orders
 
 ALTER TABLE ONLY public.sales_orders
     ADD CONSTRAINT fk_sales_orders_sales_channels_channel_id FOREIGN KEY (channel_id) REFERENCES public.sales_channels(id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY public.sales_orders
+    ADD CONSTRAINT fk_sales_orders_attestations_authorizing_attestation_id FOREIGN KEY (authorizing_attestation_id) REFERENCES public.attestations(id) ON DELETE RESTRICT;

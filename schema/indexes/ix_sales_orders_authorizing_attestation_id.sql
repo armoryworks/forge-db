@@ -1,0 +1,1 @@
+CREATE INDEX ix_sales_orders_authorizing_attestation_id ON public.sales_orders USING btree (authorizing_attestation_id);
