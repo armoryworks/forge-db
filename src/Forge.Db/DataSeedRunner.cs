@@ -5,14 +5,19 @@ using Npgsql;
 namespace Forge.Db;
 
 /// <summary>
-/// Applies the ordered, applied-once <c>data/</c> then <c>seed/</c> scripts (docs/DESIGN §6.1) after
-/// the schema apply. pg-schema-diff generates DDL, never data, so this is the one change-based area:
-/// each script runs exactly once (recorded in <c>forge_db.data_migration_log</c>) and is authored to
-/// be safe if re-run anyway (WHERE/NOT EXISTS / ON CONFLICT guards) as belt-and-suspenders.
+/// Applies the ordered, applied-once change-based scripts: <c>premigrate/</c> BEFORE the schema
+/// reconcile (docs/DESIGN §6.3), then <c>data/</c> and <c>seed/</c> after it (§6.1).
+///
+/// <para>pg-schema-diff generates DDL from state and never data, and it cannot express a rename at
+/// all — so these directories are the one change-based area. Each script runs exactly once (recorded
+/// in <c>forge_db.data_migration_log</c>) and is authored to be safe if re-run anyway (WHERE/NOT
+/// EXISTS / ON CONFLICT / IF EXISTS guards) as belt-and-suspenders.</para>
 ///
 /// <para><b>Ordering:</b> scripts sort lexicographically by filename within each directory, so the
 /// convention is a zero-padded numeric prefix (<c>0010-…​.sql</c>, <c>0020-…​.sql</c>). <c>data/</c>
-/// runs before <c>seed/</c>.</para>
+/// runs before <c>seed/</c>. Every phase shares ONE ledger, keyed by the directory-qualified name —
+/// two phases can hold the same filename without either shadowing the other, and no script can be
+/// applied twice.</para>
 ///
 /// <para><b>The ledger lives in a harness-owned <c>forge_db</c> schema</b>, not in <c>schema/</c>, and
 /// that schema is excluded from the pg-schema-diff reconcile (see
@@ -25,7 +30,7 @@ public sealed class DataSeedRunner
     public const string LedgerTable = "forge_db.data_migration_log";
 
     /// <summary>One authored script. <see cref="Name"/> (e.g. <c>seed/0010-reference-data.sql</c>) is
-    /// the stable ledger key — relative, forward-slashed, unique across data/ and seed/.</summary>
+    /// the stable ledger key — relative, forward-slashed, unique across every phase.</summary>
     public sealed record Script(string Kind, string Name, string Path);
 
     public sealed record Result(int Total, int AlreadyApplied, int Applied, bool Blocked, string? BlockedReason)
@@ -36,11 +41,20 @@ public sealed class DataSeedRunner
     // ── Pure, DB-free discovery/ordering (unit-tested without Postgres) ──────────────────────────
 
     /// <summary>All data/ then seed/ scripts, ordered lexicographically by filename within each dir.</summary>
-    public static IReadOnlyList<Script> Discover(string repoRoot)
+    public static IReadOnlyList<Script> Discover(string repoRoot) =>
+        Discover(repoRoot, SchemaLayout.DataDir, SchemaLayout.SeedDir);
+
+    /// <summary>
+    /// Scripts from the named directories, in the order given, ordered
+    /// lexicographically by filename within each. Phase-parameterised so the
+    /// pre-migrate phase shares one discovery and one ledger with data/seed —
+    /// a second ledger would let the same script name be applied twice.
+    /// </summary>
+    public static IReadOnlyList<Script> Discover(string repoRoot, params string[] kinds)
     {
         var scripts = new List<Script>();
-        scripts.AddRange(Enumerate(repoRoot, SchemaLayout.DataDir));
-        scripts.AddRange(Enumerate(repoRoot, SchemaLayout.SeedDir));
+        foreach (var kind in kinds)
+            scripts.AddRange(Enumerate(repoRoot, kind));
         return scripts;
     }
 
@@ -70,9 +84,20 @@ public sealed class DataSeedRunner
     /// ledger. <paramref name="allowMutation"/> false + pending &gt; 0 returns a Blocked result WITHOUT
     /// touching the DB (the caller's gate for non-dev targets). Idempotent: a second run is a no-op.
     /// </summary>
-    public static Result Apply(string repoRoot, string connString, bool allowMutation)
+    public static Result Apply(string repoRoot, string connString, bool allowMutation) =>
+        Apply(repoRoot, connString, allowMutation, SchemaLayout.DataDir, SchemaLayout.SeedDir);
+
+    /// <summary>
+    /// Phase-parameterised variant. <paramref name="kinds"/> selects which
+    /// directories run; everything else — the ledger, the applied-once
+    /// guarantee, the checksum warning, the per-script transaction — is shared,
+    /// so a pre-migrate script and a data script cannot collide on a name or be
+    /// applied twice.
+    /// </summary>
+    public static Result Apply(
+        string repoRoot, string connString, bool allowMutation, params string[] kinds)
     {
-        var all = Discover(repoRoot);
+        var all = Discover(repoRoot, kinds);
         if (all.Count == 0) return Result.Empty;
 
         using var conn = new NpgsqlConnection(connString);
@@ -86,8 +111,8 @@ public sealed class DataSeedRunner
 
         if (pending.Count > 0 && !allowMutation)
             return new Result(all.Count, alreadyApplied, 0, true,
-                $"{pending.Count} pending data/seed script(s) but target is non-dev and not confirmed " +
-                "(pass --yes --backup-taken).");
+                $"{pending.Count} pending {string.Join("/", kinds)} script(s) but target is non-dev and " +
+                "not confirmed (pass --yes --backup-taken).");
 
         foreach (var s in pending)
         {
@@ -107,6 +132,28 @@ public sealed class DataSeedRunner
         }
 
         return new Result(all.Count, alreadyApplied, pending.Count, false, null);
+    }
+
+    /// <summary>
+    /// Script names the target's ledger has recorded. Read-only helper for
+    /// <c>plan</c>, which must not create the ledger schema as a side effect of
+    /// looking — planning is a pure read.
+    /// </summary>
+    public static ISet<string> LoadAppliedNames(string connString)
+    {
+        using var conn = new NpgsqlConnection(connString);
+        conn.Open();
+
+        // Probe first. A SELECT against a missing relation fails at parse time, so
+        // the existence test cannot ride along in the same statement's WHERE.
+        using (var probe = new NpgsqlCommand($"SELECT to_regclass('{LedgerTable}') IS NOT NULL", conn))
+            if (probe.ExecuteScalar() is not true) return new HashSet<string>(StringComparer.Ordinal);
+
+        var names = new HashSet<string>(StringComparer.Ordinal);
+        using var cmd = new NpgsqlCommand($"SELECT script_name FROM {LedgerTable}", conn);
+        using var r = cmd.ExecuteReader();
+        while (r.Read()) names.Add(r.GetString(0));
+        return names;
     }
 
     private static void EnsureLedger(NpgsqlConnection conn)

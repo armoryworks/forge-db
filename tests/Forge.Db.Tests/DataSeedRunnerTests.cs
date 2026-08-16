@@ -84,4 +84,62 @@ public class DataSeedRunnerTests : IDisposable
     {
         if (Directory.Exists(_root)) Directory.Delete(_root, recursive: true);
     }
+
+    // ── Pre-migrate phase ──
+
+    [Fact]
+    public void PreMigrate_IsDiscoveredSeparatelyFromDataAndSeed()
+    {
+        Directory.CreateDirectory(Path.Combine(_root, "premigrate"));
+        Directory.CreateDirectory(Path.Combine(_root, "data"));
+        File.WriteAllText(Path.Combine(_root, "premigrate", "0010-rename.sql"), "SELECT 1;");
+        File.WriteAllText(Path.Combine(_root, "data", "0010-backfill.sql"), "SELECT 1;");
+
+        var pre = DataSeedRunner.Discover(_root, "premigrate");
+        var dataSeed = DataSeedRunner.Discover(_root);
+
+        // The phases must not see each other's scripts: apply runs premigrate
+        // before the schema reconcile and data/seed after it, so mixing them
+        // would run a rename at the wrong point.
+        Assert.Single(pre);
+        Assert.Equal("premigrate/0010-rename.sql", pre[0].Name);
+        Assert.DoesNotContain(dataSeed, s => s.Name.StartsWith("premigrate/"));
+    }
+
+    [Fact]
+    public void PreMigrate_ScriptsOrderByFilename()
+    {
+        Directory.CreateDirectory(Path.Combine(_root, "premigrate"));
+        File.WriteAllText(Path.Combine(_root, "premigrate", "0020-second.sql"), "SELECT 2;");
+        File.WriteAllText(Path.Combine(_root, "premigrate", "0010-first.sql"), "SELECT 1;");
+
+        var names = DataSeedRunner.Discover(_root, "premigrate").Select(s => s.Name).ToArray();
+
+        Assert.Equal(
+            new[] { "premigrate/0010-first.sql", "premigrate/0020-second.sql" },
+            names);
+    }
+
+    [Fact]
+    public void PreMigrate_MissingDirectoryIsNotAnError()
+    {
+        // Most repos will never need one. Its absence must not fail an apply.
+        Assert.Empty(DataSeedRunner.Discover(_root, "premigrate"));
+    }
+
+    [Fact]
+    public void PreMigrate_SharesTheLedgerNamespaceWithDataAndSeed()
+    {
+        Directory.CreateDirectory(Path.Combine(_root, "premigrate"));
+        Directory.CreateDirectory(Path.Combine(_root, "data"));
+        File.WriteAllText(Path.Combine(_root, "premigrate", "0010-x.sql"), "SELECT 1;");
+        File.WriteAllText(Path.Combine(_root, "data", "0010-x.sql"), "SELECT 1;");
+
+        var all = DataSeedRunner.Discover(_root, "premigrate", "data");
+
+        // Same filename in two phases yields two distinct ledger keys, so one
+        // can never mark the other as already applied.
+        Assert.Equal(2, all.Count);
+        Assert.Equal(2, all.Select(s => s.Name).Distinct().Count());
+    }
 }

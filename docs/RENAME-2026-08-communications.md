@@ -1,59 +1,45 @@
-# Manual step: the communications / attestations rename
+# The communications / attestations rename (2026-08) — no longer a manual step
 
-`contact_interactions` → `communications` and `sales_order_acceptances` → `attestations`.
+`contact_interactions` → `communications`, `sales_order_acceptances` → `attestations`, plus
+`user_id` → `handled_by_user_id` and `interaction_date` → `occurred_at`.
 
-## Why this needs a hand
+**Nothing to run by hand.** This is
+[`premigrate/0010-rename-communications-attestations.sql`](../premigrate/0010-rename-communications-attestations.sql),
+applied automatically as phase 0 of `forge-db apply` — before the schema reconcile, and before its
+plan is even computed. See [DESIGN §6.3](DESIGN.md#63-pre-migrate-what-a-state-diff-cannot-express)
+for why a rename needs its own phase, and [premigrate/README.md](../premigrate/README.md) for the
+authoring contract.
 
-forge-db is desired-state. pg-schema-diff has no concept of a rename — it sees a table that is
-gone and a table that is new, and plans `DROP` + `CREATE`. Applying that to a populated database
-destroys every row in both tables.
+This document previously carried the SQL as a runbook. It was the wrong shape: a rename that must
+run correctly on *every* install, forever, cannot depend on an operator finding a markdown file.
 
-`data/` scripts cannot cover it either: `DataSeedRunner` runs **after** the schema reconcile, by
-which point the old tables are already gone.
-
-## Fresh installs
-
-Nothing to do. `SchemaBootstrapper` applies the embedded schema to an empty database and the new
-names are what it creates.
-
-## Populated installs
-
-Run the rename **before** `forge-db apply`, so the reconcile sees tables that already have the
-right names and plans only `ADD COLUMN` / `ALTER COLUMN DROP NOT NULL`:
-
-```sql
-ALTER TABLE IF EXISTS public.contact_interactions      RENAME TO communications;
-ALTER TABLE IF EXISTS public.sales_order_acceptances   RENAME TO attestations;
-
--- Column renames within them.
-ALTER TABLE public.communications RENAME COLUMN user_id          TO handled_by_user_id;
-ALTER TABLE public.communications RENAME COLUMN interaction_date TO occurred_at;
-```
-
-Then apply as usual:
+## What to expect on a populated install
 
 ```bash
-forge-db plan  --db "$DB"                      # expect only ADD COLUMN / DROP NOT NULL
+forge-db plan  --db "$DB"     # ⚠ warns that a pre-migrate script is pending
 forge-db apply --db "$DB" --env dev --yes
 ```
 
-`IF EXISTS` makes the script safe to re-run and safe on an install that has already been renamed.
+`plan` is a pure read and does not run pre-migrate scripts, so on a not-yet-renamed target it prints
+the plan that *would* run without them — including the `DROP TABLE … DELETES_DATA` this script
+exists to prevent. It warns loudly above the plan when that is the case. **Do not reach for
+`--allow-destructive` on the strength of that plan.** Run `apply`; the rename lands first and the
+reconcile that follows is additive.
 
-Indexes, the primary key and foreign-key constraints follow a `RENAME TO` automatically in
-Postgres, but they keep their **old names** (`pk_contact_interactions`, and so on). pg-schema-diff
-will then plan to drop and recreate them under the new names. That is non-destructive — an index
-rebuild, not data loss — so it is fine to let it. On a large table, do it in a maintenance window.
-
-## Verify
+Verify afterwards:
 
 ```sql
 SELECT count(*) FROM communications;   -- matches the pre-rename contact_interactions count
 SELECT count(*) FROM attestations;     -- matches the pre-rename sales_order_acceptances count
 ```
 
-## Alternative: clean rebuild
+Indexes, primary keys and FK constraints follow `RENAME TO` automatically but keep their old names,
+so pg-schema-diff plans to drop and recreate them under the new ones. That is an index rebuild, not
+data loss. On a large table, apply in a maintenance window.
 
-`forge-db dump` / `import` (DESIGN §6.2) is the other route, but `import` matches dump files to
-target tables **by name** — renamed tables land in `MissingInTarget` and their rows are silently
-dropped. If you go that way, rename the dump files before importing. The `ALTER TABLE` above is
-simpler and has no silent-loss mode.
+## Caveat that outlives this rename: `dump` / `import` and renamed tables
+
+`forge-db import` (DESIGN §6.2) matches dump files to target tables **by name**. A dump taken before
+a rename lands in `MissingInTarget` on import and its rows are silently dropped. Rename the dump
+files first, or take the dump after applying. This applies to any rename, not just this one — the
+pre-migrate phase fixes the `apply` path, not the archive path.

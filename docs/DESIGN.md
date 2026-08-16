@@ -72,6 +72,8 @@ forge-db/
 │   ├── functions/              #   plpgsql functions (e.g. ledger immutability — see §9)
 │   └── triggers/               #   triggers (raw SQL; first-class here, unlike EF — see §9)
 │   #  NOTE: no enums/ dir — enums stay int + reference_data (§ decision 4)
+├── premigrate/                 # applied-once scripts run BEFORE the reconcile (INPUT) — see §6.3
+│   #  the escape hatch for what a state diff cannot express: renames
 ├── data/                       # ordered, explicitly-idempotent backfill scripts (INPUT) — see §6.1
 ├── seed/                       # reference/lookup data that is schema-adjacent (reference_data groups)
 ├── history/                    # captured apply plans (OUTPUT, audit-only, non-replayable) — see §4.1
@@ -83,7 +85,7 @@ forge-db/
 └── docs/DESIGN.md              # this file
 ```
 
-**INPUT vs OUTPUT is load-bearing.** `schema/` and `data/` are *inputs* — the source of truth you
+**INPUT vs OUTPUT is load-bearing.** `schema/`, `premigrate/` and `data/` are *inputs* — the source of truth you
 edit. `history/` is an *output* — receipts of what was applied, never edited, never replayed (§4.1).
 Conflating the two is the failure mode this layout exists to prevent.
 
@@ -311,6 +313,67 @@ since the in-app import necessarily targets the install it runs in.
 > test (dump → import with an exclusion + scrub → row counts, sequence continuation, orphan
 > detection) that runs in CI against the release workflow's Postgres service. `scrub/` is empty
 > until the first garbage rule is authored.
+
+---
+
+### 6.3 Pre-migrate: what a state diff cannot express
+
+pg-schema-diff compares **states**. That is the whole point of the harness — and it is also the one
+thing it cannot do: it has no way to know that two states are related by a *rename*. Rename
+`contact_interactions` to `communications` in `schema/tables/` and the diff engine sees one table
+gone and one table new, and plans the only thing those two states justify:
+
+```sql
+DROP TABLE public.contact_interactions;      -- DELETES_DATA
+CREATE TABLE public.communications (…);      -- empty
+```
+
+On a dev volume that is a shrug. On an install with a year of correspondence in it, it is the whole
+table. And it is worse than a plain failure, because the plan *succeeds* — the operator sees a
+`DELETES_DATA` hazard, reasons "yes, I did remove a table", allows it, and the rows are gone.
+
+`data/` cannot fix this: those scripts run *after* the reconcile, by which point the old table no
+longer exists.
+
+So there is one more input directory, `premigrate/`, and `apply` runs it first:
+
+| # | Phase | Applied by | Ledgered |
+|---|-------|-----------|----------|
+| 0 | `premigrate/` | `DataSeedRunner` | yes — `forge_db.data_migration_log` |
+| 1 | schema reconcile | pg-schema-diff | no (state, not history) |
+| 2 | `data/` then `seed/` | `DataSeedRunner` | yes — same ledger |
+
+Phase 0 runs before the plan is **computed**, not merely before it is applied. The plan is derived
+from live DB state; a rename applied after planning would leave the reconcile working against a
+shape that no longer exists.
+
+The rename then becomes invisible to the diff — by the time pg-schema-diff looks, the table is
+already called `communications`, and the only delta left is the genuinely additive one (the new
+columns, the new FKs), which is exactly what the desired-state model is good at.
+
+**Contract** (see [premigrate/README.md](../premigrate/README.md)): numbered, one concern per file,
+applied-once via the shared ledger, each in its own transaction, and authored to be idempotent
+anyway — `ALTER TABLE IF EXISTS`, a guard around `RENAME COLUMN` (which has no `IF EXISTS` form).
+Idempotence is not belt-and-braces here: a script must be safe against a database already at the
+target shape, because a fresh install provisioned from `schema/` is exactly that.
+
+**What does not belong here.** Anything pg-schema-diff *can* express. A column added by hand in
+`premigrate/` is a column the desired state does not know about, and the very next reconcile will
+plan to drop it. The rule of thumb: if the change is describable as a difference between two
+states, it goes in `schema/`; if it is only describable as an *action*, it goes here.
+
+**`plan` does not run these scripts** — it stays a pure read. Instead it checks the ledger and warns
+when any are pending, because the plan it prints is the one that would run *without* them, hazards
+and all. That warning is load-bearing: without it, `plan` shows a `DELETES_DATA` on a table the
+pre-migrate script exists to preserve, and the honest-looking response is to reach for
+`--allow-destructive`.
+
+> **Status: BUILT.** `SchemaLayout.PreMigrateDir`, phase-parameterised `DataSeedRunner.Discover` /
+> `Apply` (so all three phases share one ledger and one applied-once guarantee), phase 0 in
+> `ApplyCommand`, and the pending-script warning in `PlanCommand`. First script:
+> `premigrate/0010-rename-communications-attestations.sql`, covering the
+> `contact_interactions`→`communications` and `sales_order_acceptances`→`attestations` renames from
+> the proof-of-intent work.
 
 ---
 

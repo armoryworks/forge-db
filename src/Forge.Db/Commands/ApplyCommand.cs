@@ -15,6 +15,36 @@ public static class ApplyCommand
         var isDev = env.Equals("dev", StringComparison.OrdinalIgnoreCase)
                     || env.Equals("scratch", StringComparison.OrdinalIgnoreCase);
 
+        // ── 0. Pre-migrate (DESIGN §6.3): runs BEFORE the plan is computed ──
+        // pg-schema-diff compares states, so it cannot see a rename — it plans DROP + CREATE and
+        // destroys the rows. Renaming first means the reconcile that follows sees the right names
+        // and plans only the additive delta.
+        //
+        // Before the PLAN, not merely before the apply: the plan is derived from live DB state, so
+        // renaming afterwards would reconcile against a shape that no longer exists.
+        DataSeedRunner.Result pre;
+        try
+        {
+            pre = DataSeedRunner.Apply(
+                repoRoot, DbUrl.ToNpgsql(dbUrl),
+                allowMutation: isDev || (yes && backupTaken),
+                SchemaLayout.PreMigrateDir);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"[apply] pre-migrate FAILED: {ex.Message}");
+            return 1;
+        }
+
+        if (pre.Blocked)
+        {
+            Console.Error.WriteLine($"[apply] BLOCKED: {pre.BlockedReason}");
+            return 3;
+        }
+
+        if (pre.Applied > 0)
+            Console.WriteLine($"[apply] pre-migrate: {pre.Applied} script(s) applied, {pre.AlreadyApplied} already done.");
+
         var runner = new PgSchemaDiffRunner(DesiredStateAssembler.WriteTempDir(repoRoot));
 
         var plan = runner.Plan(dbUrl);
