@@ -1,0 +1,1 @@
+CREATE INDEX ix_sequence_resource_clocks_resource_type_resource_id ON public.sequence_resource_clocks USING btree (resource_type, resource_id);

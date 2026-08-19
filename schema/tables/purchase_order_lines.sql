@@ -1,7 +1,10 @@
 CREATE TABLE public.purchase_order_lines (
     id integer NOT NULL,
     purchase_order_id integer NOT NULL,
-    part_id integer NOT NULL,
+    -- Nullable since the construction/pro-services enablement (2026-08-17): a PO line may be
+    -- a service or described material with no part row. Part-less lines carry a required
+    -- description, are never binned at receipt, and post to expense rather than inventory.
+    part_id integer,
     description character varying(500) NOT NULL,
     ordered_quantity numeric(18,4) NOT NULL,
     received_quantity numeric(18,4) NOT NULL,

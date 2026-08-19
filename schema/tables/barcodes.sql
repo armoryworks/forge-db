@@ -5,6 +5,8 @@ CREATE TABLE public.barcodes (
     is_active boolean NOT NULL,
     -- 'Internal' (self-generated, unique within this install) | 'Gs1' (licensed GTIN, globally unique).
     identity_type character varying(20) DEFAULT 'Internal'::character varying NOT NULL,
+    -- 'System' (auto-generated, one per entity, not user-removable) | 'Manual' (user-added alternate/alias value).
+    source character varying(20) DEFAULT 'System'::character varying NOT NULL,
     user_id integer,
     part_id integer,
     job_id integer,

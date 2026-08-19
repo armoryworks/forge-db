@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX ix_sequence_edge_definitions_definition_id_from_step_key_to_step_key ON public.sequence_edge_definitions USING btree (definition_id, from_step_key, to_step_key);

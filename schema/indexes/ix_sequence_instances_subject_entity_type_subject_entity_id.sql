@@ -1,0 +1,1 @@
+CREATE INDEX ix_sequence_instances_subject_entity_type_subject_entity_id ON public.sequence_instances USING btree (subject_entity_type, subject_entity_id);
