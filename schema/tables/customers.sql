@@ -2,6 +2,7 @@ CREATE TABLE public.customers (
     id integer NOT NULL,
     name character varying(200) NOT NULL,
     company_name character varying(200),
+    customer_number character varying(50),
     email character varying(200),
     phone character varying(50),
     is_active boolean NOT NULL,

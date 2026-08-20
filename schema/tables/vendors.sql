@@ -1,6 +1,7 @@
 CREATE TABLE public.vendors (
     id integer NOT NULL,
     company_name character varying(200) NOT NULL,
+    vendor_number character varying(50),
     contact_name character varying(200),
     email character varying(200),
     phone character varying(50),
