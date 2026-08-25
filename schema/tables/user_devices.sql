@@ -12,6 +12,7 @@ CREATE TABLE public.user_devices (
     revoked_at timestamp with time zone,
     revoked_by_user_id integer,
     is_flagged boolean NOT NULL,
+    device_token_hash character varying(64),
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
     deleted_at timestamp with time zone,
