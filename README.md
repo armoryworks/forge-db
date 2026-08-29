@@ -1,13 +1,19 @@
 # forge-db
 
 The Forge **database project**: a version-controlled tree of desired-state SQL scripts (one file per
-object, dacpac-style) plus a C# deploy harness that reconciles any live Postgres database to that
-desired state — Postgres' answer to a SQL Server `.dacpac` + `sqlpackage`.
+object, dacpac-style) plus a C# harness that reconciles any live Postgres database to that desired
+state — Postgres' answer to a SQL Server `.dacpac` + `sqlpackage`.
 
 The harness orchestrates [stripe/pg-schema-diff](https://github.com/stripe/pg-schema-diff)
 (MIT-licensed, no account/registration) for the actual diff/apply; it does **not** hand-roll schema
-diffing. EF Core in `forge-api` stops generating migrations and becomes a lean query-mapping layer
-kept in sync via a CI drift-check.
+diffing.
+
+**This repo owns the Forge schema.** `forge-api` has no EF Core migrations — they were retired on
+2026-06-17. EF Core there is a lean query-mapping layer, and the schema it maps onto is the
+assembled output of this repo's `schema/` tree, embedded in the API as
+`forge.data/Schema/forge-schema.sql`. The API's `SchemaBootstrapper` applies that file only to a
+**fresh** database and is a no-op on an existing one; a populated install is brought forward by the
+`forge-db` reconcile step in the `forge-deploy` upgrade sequence.
 
 > **Engine note:** we initially built over [Atlas](https://atlasgo.io/), but its free tier gates
 > `CREATE EXTENSION/FUNCTION/TRIGGER` behind `atlas login` ("available to logged-in users only") —
@@ -15,35 +21,44 @@ kept in sync via a CI drift-check.
 > `vector` columns, identity columns, functions, and triggers natively. The swap is contained to one
 > file (`PgSchemaDiffRunner`).
 
-> **Status: BUILT (Phase 2 scaffold).** The prerequisite EF migration squash is **merged**
-> (forge-api `a8260a75`, PR #18) and **deployed** — the boot reconciler collapsed the live
-> `__EFMigrationsHistory` to the baseline with data intact. From that proven baseline's canonical
-> `pg_dump`, this repo now contains:
-> - the desired-state **`schema/` tree** — 293 tables, 865 indexes, 2 functions, 2 triggers, 1
->   extension, one object per file;
-> - the **`Forge.Db` harness** (`baseline` / `assemble` / `plan` / `verify` / `apply`) that drives
->   pg-schema-diff;
-> - a **green round-trip**: `verify` shows zero diff against the baseline (pg-schema-diff covers
->   tables/indexes/constraints **and** functions/triggers/extensions), backed by an explicit
->   `pg_extension` / `pg_proc` / `pg_trigger` check as belt-and-suspenders — a trigger-drop test
->   trips **both** layers (§9 #1).
->
-> Not yet done (separate efforts): the forge-api §5 lean-EF refactor + the one-directional
-> drift-check CI, and the owner-gated **no-op `apply` handoff** to the live install (deploy hold
-> stands). See [docs/DESIGN.md](docs/DESIGN.md): decision table (§7) and squash lessons (§9 — the
-> ledger triggers the squash silently dropped, caught only by tests).
+## What's in here
+
+| Path | Role |
+|------|------|
+| `schema/` | **The desired state.** One object per file: `tables/`, `indexes/`, `functions/`, `triggers/`, `extensions/`, `views/`. This is the source of truth. |
+| `premigrate/` | Applied-once scripts that run **before** the reconcile — the escape hatch for changes a state diff cannot express (renames, which would otherwise plan as DROP + CREATE). See [DESIGN.md §6.3](docs/DESIGN.md). |
+| `data/` | Ordered, explicitly-idempotent backfills coupled to a schema change (add nullable column → backfill → enforce `NOT NULL`). pg-schema-diff emits DDL, never data. [§6.1](docs/DESIGN.md) |
+| `seed/` | Schema-adjacent reference rows the application assumes exist (priorities, UoM, carriers, currencies, the chart-of-accounts reference, …). |
+| `scrub/` | Cleanup rules for the clean-rebuild workflow — where "garbage" is defined once instead of as someone's ad-hoc `DELETE`. [§6.2](docs/DESIGN.md) |
+| `history/` | Apply **receipts**: the plan SQL captured before each apply. Output only — never edited, never replayed. [§4.1](docs/DESIGN.md) |
+| `src/Forge.Db` | The harness CLI. `tests/Forge.Db.Tests` covers it (unit + Postgres-backed). |
+| `tools/apply-schema.sh` | Turn-key plan → apply → verify against the local stack. |
+
+Full rationale, decision table, and the squash post-mortem: [docs/DESIGN.md](docs/DESIGN.md).
+
+## Where this runs
+
+- **Deploy.** The `Dockerfile` bakes the harness, the `schema/` tree, and the pg-schema-diff binary
+  into a single image published to `ghcr.io/armoryworks/forge-db` (multi-arch, amd64 + arm64).
+  `forge-deploy` runs it as a one-shot pre-update step — backup → schema reconcile → app swap →
+  health gate — with `SCHEMA_IMAGE_TAG` pinned in lockstep with the release. Destructive plans halt
+  and are enumerated for approval rather than applied.
+- **CI.** `forge-api`'s `schema-drift-check` workflow re-assembles this repo's `schema/` tree and
+  fails if the embedded `forge.data/Schema/forge-schema.sql` has drifted from it. Regenerate that
+  file with `forge-db assemble` whenever the schema changes.
+
+**A self-hoster who only runs the Forge stack installs none of the tooling below** — the reconcile
+arrives as a container image. The prerequisites are for working on the schema or running the harness
+by hand.
 
 ## Developing forge-db
 
-**This tooling is only needed to work on the schema or run the harness — not to run the Forge app.**
-The app gets its schema from forge-api today; forge-db is a dev / CI / deploy-time tool, so a
-self-hoster who only runs the stack never installs any of this.
-
 Prerequisites:
-- **.NET 10 SDK** + the EF tool: `dotnet tool install --global dotnet-ef`.
+
+- **.NET 10 SDK.**
 - **[stripe/pg-schema-diff](https://github.com/stripe/pg-schema-diff)** — the diff engine (MIT, no
-  account). It ships **no prebuilt binaries**, so install via either:
-  - `go install github.com/stripe/pg-schema-diff/cmd/pg-schema-diff@v1.0.5` (pinned), or
+  account). It publishes **no prebuilt binaries**, so install via either:
+  - `go install github.com/stripe/pg-schema-diff/cmd/pg-schema-diff@v1.0.5` (the pinned version), or
   - `brew install pg-schema-diff`.
 
   Make sure it's on `PATH` (e.g. `$(go env GOPATH)/bin`) or set `PG_SCHEMA_DIFF_BIN`.
@@ -54,30 +69,36 @@ Prerequisites:
 Common commands:
 
 ```bash
-# (one-time) seed schema/ from a canonical pg_dump --schema-only of the squashed baseline
-dotnet run --project src/Forge.Db -- baseline --dump baseline.schema.sql
-
-# inspect the assembled desired-state SQL
+# inspect the assembled desired-state SQL (also how forge-api's embedded copy is regenerated)
 dotnet run --project src/Forge.Db -- assemble --out /tmp/desired.sql
 
 # show what would change to reconcile a DB to schema/ (no mutation)
 dotnet run --project src/Forge.Db -- plan   --db "postgres://user:pw@host:5432/db?sslmode=disable"
 
-# assert a DB matches schema/ — exit non-zero on drift (this is what CI runs)
+# assert a DB matches schema/ — exit non-zero on drift. Runs the pg-schema-diff plan PLUS an
+# explicit pg_extension / pg_proc / pg_trigger check, so a dropped trigger trips both layers.
 dotnet run --project src/Forge.Db -- verify --db "postgres://user:pw@host:5432/db?sslmode=disable"
 
+# reconcile behind the safety gates: pending premigrate/ scripts first, then the schema plan
+# (captured to history/ before it runs), then pending data/ + seed/ scripts — each applied once
+dotnet run --project src/Forge.Db -- apply  --db "postgres://…/db" --env dev
+
 # clean rebuild (docs/DESIGN.md §6.2): dump data out, provision fresh, import back minus garbage
-dotnet run --project src/Forge.Db -- dump   --db "postgres://…/old" --out ./dump
+dotnet run --project src/Forge.Db -- dump   --db "postgres://…/old"   --out ./dump
 dotnet run --project src/Forge.Db -- import --db "postgres://…/fresh" --from ./dump --exclude 'audit_*,*_log'
 
+# (one-time) re-seed schema/ from a canonical pg_dump --schema-only
+dotnet run --project src/Forge.Db -- baseline --dump baseline.schema.sql
+
+dotnet run --project src/Forge.Db -- version   # harness + engine versions
 dotnet test tests/Forge.Db.Tests
 ```
 
 ### Turn-key apply (`tools/apply-schema.sh`)
 
-For the common "reconcile the running stack's DB to `schema/`" case there is a wrapper that
-resolves the DB URL from the forge-deploy compose conventions (`../forge-deploy/.env`, falling back
-to `postgres/postgres@localhost:5432/forge`), checks the diff engine is installed, always shows the
+For the common "reconcile the running stack's DB to `schema/`" case there is a wrapper that resolves
+the DB URL from the forge-deploy compose conventions (`../forge-deploy/.env`, falling back to
+`postgres/postgres@localhost:5432/forge`), checks the diff engine is installed, always shows the
 plan first, applies through the harness's `DeployGates` (dev targets auto-confirm; non-dev requires
 `--yes --backup-taken`, destructive plans always require `--allow-destructive`), and finishes with a
 `verify` round-trip:
@@ -88,21 +109,24 @@ tools/apply-schema.sh --plan-only     # look, don't touch
 tools/apply-schema.sh --env prod --yes --backup-taken   # gated non-dev apply
 ```
 
-CI runs that same `verify` against the EF model via forge-api's `schema-drift-check` workflow.
-
-
 ## Deploying Forge
 
-This repository is a component of the **[Forge](https://github.com/armoryworks/forge)** platform. To deploy or update the full Forge application, use the self-contained **[`@armoryworks/forge-deploy`](https://github.com/armoryworks/forge-deploy)** CLI:
+This repository is a component of the **[Forge](https://github.com/armoryworks/forge)** platform. To
+deploy or update the full Forge application, use the
+**[`@armoryworks/forge-deploy`](https://github.com/armoryworks/forge-deploy)** installer — a thin
+bootstrapper that fetches the current deploy tree from GitHub and hands off to setup:
 
 ```bash
-# Ubuntu: Node.js 22 + the deploy CLI
-curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - && sudo apt-get install -y nodejs
-sudo npm install -g @armoryworks/forge-deploy
+sudo mkdir -p /opt/forge-deploy && sudo chown "$USER:$(id -gn)" /opt/forge-deploy
 
-# deploy or update an install (point at your install directory)
-sudo npm update -g @armoryworks/forge-deploy   # refresh to the latest bundled deploy config
-forge-deploy /opt/forge                        # unpack + run setup; pulls images from GHCR
+npx @armoryworks/forge-deploy /opt/forge-deploy    # first install (pulls images from GHCR)
+npx @armoryworks/forge-deploy upgrade              # refresh the tree + run the gated upgrade
 ```
 
-Re-running preserves your `.env`, compose overrides, and data volumes. See the **[forge-deploy README](https://github.com/armoryworks/forge-deploy#readme)** for full deploy, topology, and troubleshooting docs.
+Re-running preserves your `.env`, compose overrides, and data volumes. See the
+**[forge-deploy README](https://github.com/armoryworks/forge-deploy#readme)** for full deploy,
+topology, and troubleshooting docs.
+
+## License
+
+Apache License 2.0 — see [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE).
