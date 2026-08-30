@@ -64,7 +64,7 @@ Prerequisites:
   Make sure it's on `PATH` (e.g. `$(go env GOPATH)/bin`) or set `PG_SCHEMA_DIFF_BIN`.
 - A **pgvector** Postgres (the schema declares the `vector` type, and pg-schema-diff provisions its
   own temp DB on the target server — the connecting user needs `CREATEDB`). The project targets
-  `pgvector/pgvector:pg17`.
+  `pgvector/pgvector:pg18`.
 
 Common commands:
 
