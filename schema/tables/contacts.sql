@@ -5,6 +5,7 @@ CREATE TABLE public.contacts (
     last_name character varying(100) NOT NULL,
     email character varying(200),
     phone character varying(50),
+    fax character varying(50),
     role character varying(50),
     is_primary boolean NOT NULL,
     created_at timestamp with time zone NOT NULL,

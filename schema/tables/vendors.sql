@@ -5,6 +5,7 @@ CREATE TABLE public.vendors (
     contact_name character varying(200),
     email character varying(200),
     phone character varying(50),
+    fax character varying(50),
     address character varying(500),
     city character varying(100),
     state character varying(100),

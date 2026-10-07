@@ -5,6 +5,7 @@ CREATE TABLE public.customers (
     customer_number character varying(50),
     email character varying(200),
     phone character varying(50),
+    fax character varying(50),
     is_active boolean NOT NULL,
     deactivation_date timestamp with time zone,
     credit_limit numeric(18,2),
