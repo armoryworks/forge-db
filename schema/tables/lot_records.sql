@@ -2,6 +2,7 @@ CREATE TABLE public.lot_records (
     id integer NOT NULL,
     lot_number character varying(100) NOT NULL,
     part_id integer NOT NULL,
+    part_revision character varying(10),
     job_id integer,
     production_run_id integer,
     purchase_order_line_id integer,

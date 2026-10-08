@@ -19,6 +19,7 @@ CREATE TABLE public.jobs (
     sales_order_line_id integer,
     mrp_planned_order_id integer,
     bom_revision_id_at_release integer,
+    part_revision character varying(10),
     external_id character varying(100),
     external_ref character varying(100),
     provider character varying(50),
