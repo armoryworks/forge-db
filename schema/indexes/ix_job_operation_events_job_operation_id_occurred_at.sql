@@ -1,0 +1,1 @@
+CREATE INDEX ix_job_operation_events_job_operation_id_occurred_at ON public.job_operation_events USING btree (job_operation_id, occurred_at);
