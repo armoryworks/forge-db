@@ -6,6 +6,7 @@ CREATE TABLE public.part_revisions (
     change_reason character varying(500),
     effective_date timestamp with time zone NOT NULL,
     is_current boolean NOT NULL,
+    created_by integer,
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
     deleted_at timestamp with time zone,
@@ -26,3 +27,6 @@ ALTER TABLE ONLY public.part_revisions
 
 ALTER TABLE ONLY public.part_revisions
     ADD CONSTRAINT fk_part_revisions_parts_part_id FOREIGN KEY (part_id) REFERENCES public.parts(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY public.part_revisions
+    ADD CONSTRAINT fk_part_revisions__asp_net_users_created_by FOREIGN KEY (created_by) REFERENCES public.asp_net_users(id) ON DELETE SET NULL;
