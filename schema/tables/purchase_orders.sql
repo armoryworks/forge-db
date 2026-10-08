@@ -28,6 +28,9 @@ CREATE TABLE public.purchase_orders (
     origin_source character varying(30) DEFAULT 'Manual'::character varying NOT NULL,
     origin_user_id integer,
     origin_reference character varying(200),
+    vendor_contact_id integer,
+    vendor_address_id integer,
+    ship_to_location_id integer,
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
     deleted_at timestamp with time zone,
@@ -54,3 +57,12 @@ ALTER TABLE ONLY public.purchase_orders
 
 ALTER TABLE ONLY public.purchase_orders
     ADD CONSTRAINT fk_purchase_orders__asp_net_users_origin_user_id FOREIGN KEY (origin_user_id) REFERENCES public.asp_net_users(id) ON DELETE SET NULL;
+
+ALTER TABLE ONLY public.purchase_orders
+    ADD CONSTRAINT fk_purchase_orders_company_locations_ship_to_location_id FOREIGN KEY (ship_to_location_id) REFERENCES public.company_locations(id) ON DELETE SET NULL;
+
+ALTER TABLE ONLY public.purchase_orders
+    ADD CONSTRAINT fk_purchase_orders_vendor_contacts_vendor_contact_id FOREIGN KEY (vendor_contact_id) REFERENCES public.vendor_contacts(id) ON DELETE SET NULL;
+
+ALTER TABLE ONLY public.purchase_orders
+    ADD CONSTRAINT fk_purchase_orders_vendor_addresses_vendor_address_id FOREIGN KEY (vendor_address_id) REFERENCES public.vendor_addresses(id) ON DELETE SET NULL;
