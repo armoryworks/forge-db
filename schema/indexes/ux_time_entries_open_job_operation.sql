@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX ux_time_entries_open_job_operation ON public.time_entries USING btree (user_id, job_operation_id) WHERE ((job_operation_id IS NOT NULL) AND (timer_start IS NOT NULL) AND (timer_stop IS NULL) AND (deleted_at IS NULL));

@@ -21,6 +21,7 @@ CREATE TABLE public.time_entries (
     bill_rate numeric(10,2),
     bill_rate_currency character varying(3),
     activity_type_id integer,
+    job_operation_id integer,
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
     deleted_at timestamp with time zone,
@@ -47,3 +48,6 @@ ALTER TABLE ONLY public.time_entries
 
 ALTER TABLE ONLY public.time_entries
     ADD CONSTRAINT fk_time_entries_operations_operation_id FOREIGN KEY (operation_id) REFERENCES public.operations(id) ON DELETE SET NULL;
+
+ALTER TABLE ONLY public.time_entries
+    ADD CONSTRAINT fk_time_entries_job_operations_job_operation_id FOREIGN KEY (job_operation_id) REFERENCES public.job_operations(id) ON DELETE SET NULL;
