@@ -13,6 +13,7 @@ CREATE TABLE public.work_centers (
     ideal_cycle_time_seconds numeric(10,2),
     is_active boolean NOT NULL,
     sort_order integer NOT NULL,
+    team_id integer,
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
     deleted_at timestamp with time zone,
@@ -36,3 +37,6 @@ ALTER TABLE ONLY public.work_centers
 
 ALTER TABLE ONLY public.work_centers
     ADD CONSTRAINT fk_work_centers_company_locations_company_location_id FOREIGN KEY (company_location_id) REFERENCES public.company_locations(id) ON DELETE SET NULL;
+
+ALTER TABLE ONLY public.work_centers
+    ADD CONSTRAINT fk_work_centers_teams_team_id FOREIGN KEY (team_id) REFERENCES public.teams(id) ON DELETE SET NULL;
