@@ -9,6 +9,8 @@ CREATE TABLE public.customer_addresses (
     state character varying(50) NOT NULL,
     postal_code character varying(20) NOT NULL,
     country character varying(10) NOT NULL,
+    contact_name character varying(200),
+    phone character varying(50),
     is_default boolean NOT NULL,
     is_active boolean DEFAULT true NOT NULL,
     created_at timestamp with time zone NOT NULL,
