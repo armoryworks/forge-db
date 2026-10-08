@@ -15,6 +15,7 @@ CREATE TABLE public.reorder_suggestions (
     approved_by_user_id integer,
     approved_at timestamp with time zone,
     resulting_purchase_order_id integer,
+    resulting_job_id integer,
     dismissed_by_user_id integer,
     dismissed_at timestamp with time zone,
     dismiss_reason character varying(500),
@@ -45,3 +46,6 @@ ALTER TABLE ONLY public.reorder_suggestions
 
 ALTER TABLE ONLY public.reorder_suggestions
     ADD CONSTRAINT "fk_reorder_suggestions_purchase_orders_resulting_purchase_orde~" FOREIGN KEY (resulting_purchase_order_id) REFERENCES public.purchase_orders(id) ON DELETE SET NULL;
+
+ALTER TABLE ONLY public.reorder_suggestions
+    ADD CONSTRAINT fk_reorder_suggestions_jobs_resulting_job_id FOREIGN KEY (resulting_job_id) REFERENCES public.jobs(id) ON DELETE SET NULL;
