@@ -11,7 +11,7 @@ namespace Forge.Db;
 /// </summary>
 public static partial class DeployGates
 {
-    [GeneratedRegex(@"\b(DROP\s+TABLE|DROP\s+COLUMN|DROP\s+CONSTRAINT|DROP\s+INDEX|DROP\s+SCHEMA|DROP\s+FUNCTION|DROP\s+TRIGGER|ALTER\s+TABLE[^;]*\bDROP\b)",
+    [GeneratedRegex(@"\b(DROP\s+TABLE|DROP\s+COLUMN|DROP\s+CONSTRAINT|DROP\s+INDEX|DROP\s+SCHEMA|DROP\s+FUNCTION|DROP\s+TRIGGER|ALTER\s+TABLE[^;]*\bDROP\b(?!\s+(?:NOT\s+NULL|DEFAULT)\b))",
         RegexOptions.IgnoreCase)]
     private static partial Regex DestructiveRe();
 

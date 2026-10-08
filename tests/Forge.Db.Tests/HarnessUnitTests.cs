@@ -19,6 +19,29 @@ public class HarnessUnitTests
     }
 
     [Fact]
+    public void DestructiveStatements_DoNotFlagRelaxingAConstraint()
+    {
+        const string plan = """
+            ALTER TABLE "public"."qc_inspection_results" ALTER COLUMN "passed" DROP NOT NULL;
+            ALTER TABLE "public"."jobs" ALTER COLUMN "priority" DROP DEFAULT;
+            """;
+        Assert.Empty(DeployGates.DestructiveStatements(plan));
+        Assert.True(DeployGates.Evaluate(plan, isDev: false, confirmed: true, backupTaken: true, allowDestructive: false).Allowed);
+    }
+
+    [Fact]
+    public void DestructiveStatements_StillFlagRealDropsBesideARelaxedConstraint()
+    {
+        const string plan = """
+            ALTER TABLE "public"."vendors" ALTER COLUMN "fax" DROP NOT NULL;
+            ALTER TABLE "public"."vendors" DROP COLUMN "legacy_code";
+            ALTER TABLE "public"."vendors" DROP CONSTRAINT "fk_vendors_x";
+            """;
+        Assert.NotEmpty(DeployGates.DestructiveStatements(plan));
+        Assert.False(DeployGates.Evaluate(plan, isDev: false, confirmed: true, backupTaken: true, allowDestructive: false).Allowed);
+    }
+
+    [Fact]
     public void Gates_BlockDestructiveWithoutFlag_AllowWithFlag()
     {
         const string plan = "DROP TABLE bar;";
