@@ -3,6 +3,7 @@ CREATE TABLE public.qc_inspections (
     job_id integer,
     production_run_id integer,
     template_id integer,
+    part_id integer,
     inspector_id integer NOT NULL,
     lot_number character varying(100),
     status character varying(50) NOT NULL,
@@ -28,6 +29,9 @@ ALTER TABLE ONLY public.qc_inspections
 
 ALTER TABLE ONLY public.qc_inspections
     ADD CONSTRAINT fk_qc_inspections_jobs_job_id FOREIGN KEY (job_id) REFERENCES public.jobs(id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY public.qc_inspections
+    ADD CONSTRAINT fk_qc_inspections_parts_part_id FOREIGN KEY (part_id) REFERENCES public.parts(id) ON DELETE RESTRICT;
 
 ALTER TABLE ONLY public.qc_inspections
     ADD CONSTRAINT fk_qc_inspections_production_runs_production_run_id FOREIGN KEY (production_run_id) REFERENCES public.production_runs(id) ON DELETE RESTRICT;

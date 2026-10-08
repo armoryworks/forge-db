@@ -3,6 +3,8 @@ CREATE TABLE public.qc_inspection_results (
     inspection_id integer NOT NULL,
     checklist_item_id integer,
     description character varying(200) NOT NULL,
+    specification character varying(500),
+    is_required boolean DEFAULT true NOT NULL,
     passed boolean NOT NULL,
     measured_value character varying(200),
     notes character varying(500)

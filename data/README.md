@@ -7,8 +7,7 @@ column → backfill existing rows → enforce the constraint — live here.
 This is the **one** place forge-db is change-based rather than declarative: each script runs once
 and is written to be safe if re-run anyway (`WHERE … NOT EXISTS` guards).
 
-Distinct from `history/` (an OUTPUT you never edit). Empty until the first coupled
-schema-change-plus-backfill lands.
+Distinct from `history/` (an OUTPUT you never edit).
 
 ## Authoring convention (applies to `data/` and `seed/`)
 
