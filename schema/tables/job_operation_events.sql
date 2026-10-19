@@ -2,7 +2,7 @@ CREATE TABLE public.job_operation_events (
     id integer NOT NULL,
     job_operation_id integer NOT NULL,
     kind character varying(20) NOT NULL,
-    quantity numeric(10,2) NOT NULL,
+    quantity numeric(18,4) NOT NULL,
     reason_code character varying(50),
     user_id integer NOT NULL,
     occurred_at timestamp with time zone NOT NULL,
