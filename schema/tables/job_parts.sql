@@ -2,7 +2,7 @@ CREATE TABLE public.job_parts (
     id integer NOT NULL,
     job_id integer NOT NULL,
     part_id integer NOT NULL,
-    quantity numeric(10,2) NOT NULL,
+    quantity numeric(18,4) NOT NULL,
     notes character varying(500),
     job_id1 integer
 );
