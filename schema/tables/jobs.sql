@@ -43,6 +43,7 @@ CREATE TABLE public.jobs (
     retainer_balance_hours numeric(10,2),
     sow_id integer,
     cover_photo_file_id integer,
+    target_quantity numeric(18,4),
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
     deleted_at timestamp with time zone,
