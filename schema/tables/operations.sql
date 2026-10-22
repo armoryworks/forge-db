@@ -26,6 +26,7 @@ CREATE TABLE public.operations (
     estimated_labor_cost numeric(18,4) DEFAULT 0.0 NOT NULL,
     estimated_burden_cost numeric(18,4) DEFAULT 0.0 NOT NULL,
     labor_attendance_percent numeric(5,2) DEFAULT 100 NOT NULL,
+    cycle_countdown boolean DEFAULT false NOT NULL,
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
     deleted_at timestamp with time zone,

@@ -1,0 +1,1 @@
+CREATE INDEX ix_operation_predecessors_predecessor_operation_id ON public.operation_predecessors USING btree (predecessor_operation_id);
