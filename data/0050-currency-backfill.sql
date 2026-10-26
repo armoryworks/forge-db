@@ -40,6 +40,29 @@ BEGIN
 
     UPDATE public.purchase_orders SET currency_id = fc WHERE currency_id IS NULL;
 
+    IF fc <> 1 THEN
+        UPDATE public.invoices SET currency_id = fc WHERE currency_id = 1 AND fx_rate = 1;
+        UPDATE public.vendor_bills SET currency_id = fc WHERE currency_id = 1 AND fx_rate = 1;
+
+        UPDATE public.acct_ar_open_items oi
+        SET currency_id = fc
+        FROM public.invoices i
+        WHERE oi.source_type = 'Invoice'
+          AND oi.source_id = i.id
+          AND oi.currency_id = 1
+          AND oi.fx_rate = 1
+          AND i.currency_id = fc;
+
+        UPDATE public.acct_ap_open_items oi
+        SET currency_id = fc
+        FROM public.vendor_bills b
+        WHERE oi.source_type = 'VendorBill'
+          AND oi.source_id = b.id
+          AND oi.currency_id = 1
+          AND oi.fx_rate = 1
+          AND b.currency_id = fc;
+    END IF;
+
     UPDATE public.payments p
     SET currency_id = first_app.currency_id,
         fx_rate = CASE WHEN first_app.currency_id = fc THEN 1 ELSE first_app.settlement_fx_rate END
@@ -67,9 +90,4 @@ BEGIN
       AND vp.currency_id IS NULL;
 
     UPDATE public.vendor_payments SET currency_id = fc WHERE currency_id IS NULL;
-
-    IF fc <> 1 THEN
-        UPDATE public.invoices SET currency_id = fc WHERE currency_id = 1 AND fx_rate = 1;
-        UPDATE public.vendor_bills SET currency_id = fc WHERE currency_id = 1 AND fx_rate = 1;
-    END IF;
 END $$;

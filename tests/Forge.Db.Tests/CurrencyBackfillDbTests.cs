@@ -27,6 +27,8 @@ public class CurrencyBackfillDbTests
         CREATE TABLE payment_applications (id integer PRIMARY KEY, payment_id integer NOT NULL, invoice_id integer NOT NULL, settlement_fx_rate numeric(18,8) NOT NULL DEFAULT 1);
         CREATE TABLE vendor_payments (id integer PRIMARY KEY, currency_id integer, fx_rate numeric(18,8) NOT NULL DEFAULT 1);
         CREATE TABLE vendor_payment_applications (id integer PRIMARY KEY, vendor_payment_id integer NOT NULL, vendor_bill_id integer NOT NULL, settlement_fx_rate numeric(18,8) NOT NULL DEFAULT 1);
+        CREATE TABLE acct_ar_open_items (id integer PRIMARY KEY, source_type varchar(50) NOT NULL, source_id integer NOT NULL, currency_id integer NOT NULL, fx_rate numeric(18,8) NOT NULL);
+        CREATE TABLE acct_ap_open_items (id integer PRIMARY KEY, source_type varchar(50) NOT NULL, source_id integer NOT NULL, currency_id integer NOT NULL, fx_rate numeric(18,8) NOT NULL);
         """;
 
     private static string? Dsn => Environment.GetEnvironmentVariable("FORGE_DB_TEST_DSN");
@@ -80,11 +82,20 @@ public class CurrencyBackfillDbTests
             INSERT INTO acct_books VALUES (1, 2, true);
             INSERT INTO invoices VALUES (1, 1, 1), (2, 1, 1.36);
             INSERT INTO vendor_bills VALUES (1, 1, 1);
+            INSERT INTO acct_ar_open_items VALUES (1, 'Invoice', 1, 1, 1), (2, 'Invoice', 2, 1, 1.36);
+            INSERT INTO acct_ap_open_items VALUES (1, 'VendorBill', 1, 1, 1);
+            INSERT INTO payments VALUES (1, NULL, 1);
+            INSERT INTO payment_applications VALUES (1, 1, 1, 1);
             """, scratch =>
         {
             Assert.Equal(2L, ScalarLong(scratch, "SELECT currency_id FROM invoices WHERE id = 1"));
             Assert.Equal(1L, ScalarLong(scratch, "SELECT currency_id FROM invoices WHERE id = 2"));
             Assert.Equal(2L, ScalarLong(scratch, "SELECT currency_id FROM vendor_bills WHERE id = 1"));
+            Assert.Equal(2L, ScalarLong(scratch, "SELECT currency_id FROM acct_ar_open_items WHERE id = 1"));
+            Assert.Equal(1L, ScalarLong(scratch, "SELECT currency_id FROM acct_ar_open_items WHERE id = 2"));
+            Assert.Equal(2L, ScalarLong(scratch, "SELECT currency_id FROM acct_ap_open_items WHERE id = 1"));
+            Assert.Equal(2L, ScalarLong(scratch, "SELECT currency_id FROM payments WHERE id = 1"));
+            Assert.Equal(1m, ScalarDecimal(scratch, "SELECT fx_rate FROM payments WHERE id = 1"));
         });
     }
 
