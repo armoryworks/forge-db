@@ -1,0 +1,1 @@
+CREATE INDEX ix_vendor_bill_lines_freight_for_purchase_order_id ON public.vendor_bill_lines USING btree (freight_for_purchase_order_id);
