@@ -1,0 +1,1 @@
+CREATE INDEX ix_customer_returns_restock_bin_movement_id ON public.customer_returns USING btree (restock_bin_movement_id);
