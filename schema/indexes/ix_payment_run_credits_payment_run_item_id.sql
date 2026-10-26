@@ -1,0 +1,1 @@
+CREATE INDEX ix_payment_run_credits_payment_run_item_id ON public.payment_run_credits USING btree (payment_run_item_id);
