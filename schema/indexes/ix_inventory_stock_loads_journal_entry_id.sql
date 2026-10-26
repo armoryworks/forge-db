@@ -1,0 +1,1 @@
+CREATE INDEX ix_inventory_stock_loads_journal_entry_id ON public.inventory_stock_loads USING btree (journal_entry_id);
