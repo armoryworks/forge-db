@@ -1,0 +1,1 @@
+CREATE INDEX ix_inventory_stock_load_lines_stock_load_id ON public.inventory_stock_load_lines USING btree (stock_load_id);
