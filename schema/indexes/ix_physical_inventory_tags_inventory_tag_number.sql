@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX ix_physical_inventory_tags_inventory_tag_number ON public.physical_inventory_tags USING btree (physical_inventory_id, tag_number);
