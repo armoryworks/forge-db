@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX ix_certificates_of_analysis_certificate_number ON public.certificates_of_analysis USING btree (certificate_number);

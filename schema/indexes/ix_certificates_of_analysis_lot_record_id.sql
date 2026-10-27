@@ -1,0 +1,1 @@
+CREATE INDEX ix_certificates_of_analysis_lot_record_id ON public.certificates_of_analysis USING btree (lot_record_id);

@@ -1,0 +1,1 @@
+CREATE INDEX ix_certificates_of_analysis_file_attachment_id ON public.certificates_of_analysis USING btree (file_attachment_id);
