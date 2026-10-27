@@ -1,0 +1,1 @@
+CREATE INDEX ix_vendor_credit_memo_applications_vendor_credit_memo_id ON public.vendor_credit_memo_applications USING btree (vendor_credit_memo_id);
