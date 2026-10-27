@@ -1,0 +1,1 @@
+CREATE INDEX ix_employee_profiles_terminated_by_user_id ON public.employee_profiles USING btree (terminated_by_user_id);
