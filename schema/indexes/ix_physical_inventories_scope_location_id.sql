@@ -1,0 +1,1 @@
+CREATE INDEX ix_physical_inventories_scope_location_id ON public.physical_inventories USING btree (scope_location_id);
